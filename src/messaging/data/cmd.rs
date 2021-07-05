@@ -8,16 +8,10 @@
 
 use super::{chunk::ChunkWrite, register::RegisterWrite, CmdError, Error};
 use crate::types::PublicKey;
+use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 
-use serde::{Deserialize, Serialize};
-
-/// Data commands - creating, updating, or removing data.
-///
-/// See the [`types`] module documentation for more details of the types supported by the Safe
-/// Network, and their semantics.
-///
-/// [`types`]: crate::types
+/// Command messages for data or transfer operations
 #[allow(clippy::large_enum_variant)]
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub enum DataCmd {

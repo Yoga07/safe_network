@@ -13,10 +13,11 @@ mod queries;
 mod register_apis;
 
 use crate::client::{config_handler::Config, connections::Session, errors::Error};
-use crate::messaging::data::{CmdError, DataCmd};
+use crate::messaging::data::{CmdError, DataCmd, DebitableOp, GuaranteedQuote, PaymentReceipt};
 use crate::types::{Chunk, ChunkAddress, Keypair, PublicKey};
 use lru::LruCache;
 use rand::rngs::OsRng;
+use std::collections::BTreeSet;
 use std::{
     path::Path,
     {collections::HashSet, net::SocketAddr, sync::Arc},
@@ -131,7 +132,33 @@ impl Client {
     // Private helper to obtain payment proof for a data command, send it to the network,
     // and also apply the payment to local replica actor.
     async fn pay_and_send_data_command(&self, cmd: DataCmd) -> Result<(), Error> {
+        // Get quote for write
+        let quote = self.get_quote().await?;
+        // Generate payment matching the quote
+        let payment = self.generate_payment(quote).await?;
+
+        // The _actual_ message
+        let cmd = Cmd::Debitable(DebitableOp::Upload {
+            data: BTreeSet::new(),
+            payment,
+        });
+
         self.send_cmd(cmd).await
+    }
+
+    ///
+    pub async fn get_quote(&self) -> Result<GuaranteedQuote, Error> {
+        unimplemented!()
+    }
+
+    ///
+    pub async fn generate_payment(&self, _quote: GuaranteedQuote) -> Result<PaymentReceipt, Error> {
+        unimplemented!()
+        // Ok(PaymentReceipt {
+        //     data: BTreeSet::new(),
+        //     sig,
+        //     key_set,
+        // })
     }
 
     #[cfg(test)]

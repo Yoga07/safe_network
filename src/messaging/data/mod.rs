@@ -12,6 +12,7 @@ mod chunk;
 mod cmd;
 mod data_exchange;
 mod errors;
+mod payment;
 mod query;
 mod register;
 
@@ -22,6 +23,10 @@ pub use self::{
         ChunkDataExchange, ChunkMetadata, DataExchange, HolderMetadata, RegisterDataExchange,
     },
     errors::{Error, Result},
+    payment::{
+        CostInquiry, DebitableOp, GuaranteedQuote, GuaranteedQuoteShare, PaymentCmd, PaymentQuote,
+        PaymentReceipt, PaymentReceiptShare, RegisterPayment,
+    },
     query::DataQuery,
     register::{RegisterCmd, RegisterRead, RegisterWrite},
 };
@@ -103,6 +108,18 @@ pub enum CmdError {
     /// An error response to a [`DataCmd`].
     // FIXME: `Cmd` is not an enum, so should this be?
     Data(Error), // DataError enum for better differentiation?
+    ///
+    Payment(PaymentError),
+}
+
+///
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct PaymentError(pub Error);
+
+impl From<sn_dbc::Error> for PaymentError {
+    fn from(e: sn_dbc::Error) -> Self {
+        Self(Error::InvalidOperation(e.to_string()))
+    }
 }
 
 /// The response to a query, containing the query result.
@@ -127,6 +144,8 @@ pub enum QueryResponse {
     GetRegisterPolicy(Result<Policy>),
     /// Response to [`RegisterRead::GetUserPermissions`].
     GetRegisterUserPermissions(Result<Permissions>),
+    /// Get a quote for payment, with a guaranteed store cost.
+    GetStoreCost(Result<PaymentQuote>),
 }
 
 impl QueryResponse {
@@ -134,6 +153,7 @@ impl QueryResponse {
     pub fn is_success(&self) -> bool {
         use QueryResponse::*;
         match self {
+            GetStoreCost(result) => result.is_ok(),
             GetChunk(result) => result.is_ok(),
             GetRegister(result) => result.is_ok(),
             GetRegisterOwner(result) => result.is_ok(),
