@@ -8,13 +8,15 @@
 
 use super::Client;
 use crate::client::Error;
-use crate::messaging::client::{DataCmd, DataQuery, QueryResponse, SequenceRead, SequenceWrite};
+use crate::messaging::client::{
+    DataCmd, DataQuery, DebitableOp, QueryResponse, SequenceRead, SequenceWrite,
+};
 use crate::types::{
     PublicKey, Sequence, SequenceAddress, SequenceEntries, SequenceEntry, SequenceIndex,
     SequencePermissions, SequencePrivatePermissions, SequencePrivatePolicy,
     SequencePublicPermissions, SequencePublicPolicy, SequenceUser,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use tracing::{debug, trace};
 use xor_name::XorName;
 
@@ -114,7 +116,19 @@ impl Client {
     /// TODO: update once data types are crdt compliant
     ///
     pub async fn delete_sequence(&self, address: SequenceAddress) -> Result<(), Error> {
-        let cmd = DataCmd::Sequence(SequenceWrite::Delete(address));
+        let _cmd = DataCmd::Sequence(SequenceWrite::Delete(address));
+
+        // Get quote for write
+        let quote = self.get_quote().await?;
+        // Generate payment matching the quote
+        let payment = self.generate_payment(quote).await?;
+
+        // The _actual_ message
+        let cmd = Cmd::Debitable(DebitableOp::Upload {
+            data: BTreeSet::new(),
+            payment,
+        });
+
         self.send_cmd(cmd).await
     }
 

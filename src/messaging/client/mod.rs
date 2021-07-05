@@ -12,12 +12,13 @@ mod data_exchange;
 mod duty;
 mod errors;
 mod map;
+mod payment;
 mod register;
 mod sequence;
 
 pub use self::{
     chunk::{ChunkRead, ChunkWrite},
-    data::{DataCmd, DataQuery},
+    data::{DataCmd, DataQuery, PointerEdit, PointerEditKind},
     data_exchange::{
         ChunkDataExchange, ChunkMetadata, DataExchange, HolderMetadata, MapDataExchange,
         RegisterDataExchange, SequenceDataExchange,
@@ -25,6 +26,10 @@ pub use self::{
     duty::{AdultDuties, Duty, NodeDuties},
     errors::{Error, Result},
     map::{MapCmd, MapRead, MapWrite},
+    payment::{
+        CostInquiry, DebitableOp, GuaranteedQuote, GuaranteedQuoteShare, PaymentCmd, PaymentQuote,
+        PaymentReceipt, PaymentReceiptShare, RegisterPayment,
+    },
     register::{RegisterCmd, RegisterRead, RegisterWrite},
     sequence::{SequenceCmd, SequenceRead, SequenceWrite},
 };
@@ -124,6 +129,18 @@ pub enum ProcessMsg {
 pub enum CmdError {
     ///
     Data(Error), // DataError enum for better differentiation?
+    ///
+    Payment(PaymentError),
+}
+
+///
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct PaymentError(pub Error);
+
+impl From<sn_dbc::Error> for PaymentError {
+    fn from(e: sn_dbc::Error) -> Self {
+        Self(Error::InvalidOperation(e.to_string()))
+    }
 }
 
 /// Events from the network that
@@ -189,6 +206,8 @@ pub enum QueryResponse {
     GetRegisterPolicy(Result<Policy>),
     /// Get Register permissions for a user.
     GetRegisterUserPermissions(Result<Permissions>),
+    /// Get a quote for payment, with a guaranteed store cost.
+    GetStoreCost(Result<PaymentQuote>),
 }
 
 impl QueryResponse {
@@ -196,6 +215,7 @@ impl QueryResponse {
     pub fn is_success(&self) -> bool {
         use QueryResponse::*;
         match self {
+            GetStoreCost(result) => result.is_ok(),
             GetChunk(result) => result.is_ok(),
             GetMap(result) => result.is_ok(),
             GetMapShell(result) => result.is_ok(),

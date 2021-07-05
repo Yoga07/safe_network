@@ -8,8 +8,8 @@
 
 use crate::messaging::{
     client::{
-        ChunkRead, ChunkWrite, ClientMsg, DataCmd, DataExchange, DataQuery, ProcessingError,
-        QueryResponse, SupportingInfo,
+        ChunkRead, ChunkWrite, ClientMsg, CostInquiry, DataCmd, DataExchange, DataQuery,
+        DebitableOp, ProcessingError, QueryResponse, SupportingInfo,
     },
     node::NodeMsg,
     ClientSigned, DstLocation, EndUser, MessageId, SrcLocation,
@@ -137,6 +137,11 @@ pub enum NodeDuty {
         targets: BTreeSet<XorName>,
         aggregation: bool,
     },
+    ProcessInquiry {
+        inquiry: CostInquiry,
+        msg_id: MessageId,
+        origin: EndUser,
+    },
     /// Process read of data
     ProcessRead {
         query: DataQuery,
@@ -146,9 +151,16 @@ pub enum NodeDuty {
     },
     /// Process write of data
     ProcessWrite {
-        cmd: DataCmd,
+        op: DataCmd,
         msg_id: MessageId,
         client_signed: ClientSigned,
+        origin: EndUser,
+    },
+    /// Process Payment for a DataCmd
+    ProcessDataPayment {
+        id: MessageId,
+        cmd: DebitableOp,
+        client_sig: ClientSig,
         origin: EndUser,
     },
     /// Receive a chunk that is being replicated.
@@ -179,6 +191,7 @@ impl Debug for NodeDuty {
             Self::ReadChunk { .. } => write!(f, "ReadChunk"),
             Self::WriteChunk { .. } => write!(f, "WriteChunk"),
             Self::ProcessRepublish { .. } => write!(f, "ProcessRepublish"),
+            Self::ProcessDataPayment { .. } => write!(f, "ProcessDataPayment"),
             Self::RecordAdultReadLiveness {
                 correlation_id,
                 response,
@@ -213,6 +226,7 @@ impl Debug for NodeDuty {
                 "SendToNodes [ id: {}, msg: {:?}, targets: {:?}, aggregation: {:?} ]",
                 id, msg, targets, aggregation
             ),
+            Self::ProcessInquiry { .. } => write!(f, "ProcessInquiry"),
             Self::ProcessRead { .. } => write!(f, "ProcessRead"),
             Self::ProcessWrite { .. } => write!(f, "ProcessWrite"),
             Self::ReplicateChunk { .. } => write!(f, "ReplicateChunk"),

@@ -80,6 +80,21 @@ fn map_client_process_msg(
             client_signed,
             origin,
         },
+        ProcessMsg::Cmd {
+            cmd: Cmd::Debitable(cmd),
+            id,
+            client_sig,
+            ..
+        } =>
+        // FIXME: ******** validate client signature!!!! *********
+        {
+            NodeDuty::ProcessDataPayment {
+                cmd,
+                id,
+                client_sig,
+                origin,
+            }
+        }
         _ => {
             let error_data = convert_to_error_message(Error::InvalidMessage(
                 msg_id,

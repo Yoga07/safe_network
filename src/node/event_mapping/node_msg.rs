@@ -96,7 +96,7 @@ fn match_node_msg(msg_id: MessageId, msg: MessageReceived, origin: SrcLocation) 
         }) => {
             // FIXME: ******** validate client signature!!!! *********
             NodeDuty::ProcessWrite {
-                cmd,
+                op: cmd,
                 msg_id,
                 client_signed,
                 origin,
