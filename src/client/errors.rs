@@ -8,8 +8,8 @@
 
 pub use crate::messaging::client::Error as ErrorMessage;
 use crate::messaging::{
-    client::{CmdError, QueryResponse},
-    Error as MessagingError, MessageId,
+    client::{CmdError, PaymentError, QueryResponse},
+    MessageId,
 };
 use crate::types::Error as DtError;
 use qp2p::Error as QuicP2pError;
@@ -124,7 +124,9 @@ pub enum Error {
 
 impl From<(CmdError, MessageId)> for Error {
     fn from((error, msg_id): (CmdError, MessageId)) -> Self {
-        let CmdError::Data(source) = error;
+        let source = match error {
+            CmdError::Data(source) | CmdError::Payment(PaymentError(source)) => source,
+        };
         Error::ErrorMessage { source, msg_id }
     }
 }

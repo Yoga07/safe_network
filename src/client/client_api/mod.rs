@@ -15,7 +15,7 @@ mod register_apis;
 mod sequence_apis;
 
 use crate::client::{config_handler::Config, connections::Session, errors::Error};
-use crate::messaging::client::{CmdError, DataCmd, DebitableOp, GuaranteedQuote, PaymentReceipt};
+use crate::messaging::client::{ChargedOps, CmdError, DataCmd, GuaranteedQuote, PaymentReceipt};
 use crate::types::{Chunk, ChunkAddress, Keypair, PublicKey};
 use lru::LruCache;
 use rand::rngs::OsRng;
@@ -139,7 +139,7 @@ impl Client {
         let payment = self.generate_payment(quote).await?;
 
         // The _actual_ message
-        let cmd = Cmd::Debitable(DebitableOp::Upload {
+        let cmd = Cmd::Debitable(ChargedOps::Upload {
             data: BTreeSet::new(),
             payment,
         });

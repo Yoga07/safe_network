@@ -79,8 +79,9 @@ sled = "0.34.6"
 sysinfo = "0.19.0"
 
   [dependencies.sn_dbc]
-  git = "https://github.com/oetyng/sn_dbc"
-  branch = "impl-async-keymanager"
+  #git = "https://github.com/oetyng/sn_dbc"
+  path = "../sn_dbc"
+  branch = "integrate-to-sn"
 
   [dependencies.ed25519-dalek]
   version = "1.0.0"
