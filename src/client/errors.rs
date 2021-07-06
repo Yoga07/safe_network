@@ -8,7 +8,7 @@
 
 pub use crate::messaging::data::Error as ErrorMessage;
 use crate::messaging::{
-    data::{CmdError, QueryResponse},
+    data::{CmdError, PaymentError, QueryResponse},
     Error as MessagingError, MessageId,
 };
 use crate::types::Error as DtError;
@@ -124,7 +124,9 @@ pub enum Error {
 
 impl From<(CmdError, MessageId)> for Error {
     fn from((error, msg_id): (CmdError, MessageId)) -> Self {
-        let CmdError::Data(source) = error;
+        let source = match error {
+            CmdError::Data(source) | CmdError::Payment(PaymentError(source)) => source,
+        };
         Error::ErrorMessage { source, msg_id }
     }
 }

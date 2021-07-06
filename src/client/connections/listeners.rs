@@ -8,6 +8,7 @@
 
 use super::Session;
 use crate::client::Error;
+use crate::messaging::client::PaymentError;
 use crate::messaging::{
     data::{CmdError, DataMsg, ProcessMsg},
     section_info::{GetSectionResponse, SectionInfoMsg},
@@ -230,7 +231,7 @@ impl Session {
                     let _ = error_sender.send(error.clone()).await;
 
                     match error {
-                        CmdError::Data(_data_error) => {
+                        CmdError::Data(_error) | CmdError::Payment(PaymentError(_error)) => {
                             // do nothing just yet
                         }
                     }

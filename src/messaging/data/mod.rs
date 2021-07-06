@@ -24,7 +24,7 @@ pub use self::{
     },
     errors::{Error, Result},
     payment::{
-        CostInquiry, DebitableOp, GuaranteedQuote, GuaranteedQuoteShare, PaymentCmd, PaymentQuote,
+        ChargedOps, CostInquiry, GuaranteedQuote, GuaranteedQuoteShare, PaymentCmd, PaymentQuote,
         PaymentReceipt, PaymentReceiptShare, RegisterPayment,
     },
     query::DataQuery,
@@ -122,7 +122,15 @@ impl From<sn_dbc::Error> for PaymentError {
     }
 }
 
-/// The response to a query, containing the query result.
+/// Events from the network that
+/// are pushed to the client.
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum Event {
+    /// Payment received
+    PaymentReceived(PaymentReceiptShare),
+}
+
+/// Query responses from the network.
 #[allow(clippy::large_enum_variant, clippy::type_complexity)]
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub enum QueryResponse {

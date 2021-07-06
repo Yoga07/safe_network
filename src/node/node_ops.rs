@@ -8,8 +8,8 @@
 
 use crate::messaging::{
     data::{
-        ChunkRead, ChunkWrite, CostInquiry, DataExchange, DataMsg, DataQuery, DebitableOp,
-        DebitableOp, ProcessingError, QueryResponse,
+        ChargedOps, ChunkRead, ChunkWrite, CostInquiry, DataExchange, DataMsg, DataQuery,
+        ProcessingError, QueryResponse,
     },
     node::NodeMsg,
     DataAuthority, DstLocation, EndUser, MessageId,
@@ -149,8 +149,8 @@ pub enum NodeDuty {
     /// Process Payment for a DataCmd
     ProcessDataPayment {
         id: MessageId,
-        cmd: DebitableOp,
-        client_sig: ClientSig,
+        cmd: ChargedOps,
+        client_sig: ClientSigned,
         origin: EndUser,
     },
     /// Receive a chunk that is being replicated.
