@@ -223,7 +223,6 @@ impl Session {
         let wire_msg = WireMsg::new_msg(msg_id, payload, msg_kind, dst_location)?;
 
         let msg_bytes = wire_msg.serialize()?;
-
         // We select the NUM_OF_ELDERS_SUBSET_FOR_QUERIES closest
         // connected Elders to the data we are querying
         let elders: Vec<SocketAddr> = self
