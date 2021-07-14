@@ -88,7 +88,7 @@ impl Client {
         let payment = self.generate_payment(quote).await?;
 
         // The _actual_ message
-        let cmd = Cmd::Debitable(ChargedOps::Upload {
+        let cmd = DataCmd::ChargedOp(ChargedOps::Upload {
             data: BTreeSet::new(),
             payment,
         });

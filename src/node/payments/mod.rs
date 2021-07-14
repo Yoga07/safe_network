@@ -15,11 +15,11 @@ pub use self::reward_wallets::RewardWallets;
 use crate::{
     messaging::{
         client::{
-            ChargedOps, ClientMsg, ClientSig, CmdError, CostInquiry, Error as ErrorMsg, Event,
+            ChargedOps, ClientMsg, CmdError, CostInquiry, Error as ErrorMsg, Event,
             GuaranteedQuote, PaymentError, PaymentQuote, PaymentReceiptShare, ProcessMsg,
             QueryResponse, RegisterPayment,
         },
-        Aggregation, DstLocation, EndUser, MessageId, SrcLocation,
+        DstLocation, EndUser, MessageId, SrcLocation,
     },
     node::{
         capacity::OpCost as OpCostCalc,
@@ -101,14 +101,13 @@ impl<K: KeyManager> Payments<K> {
             .await
             .map_err(|e| crate::messaging::client::Error::InvalidOperation(e.to_string()));
         NodeDuty::Send(OutgoingMsg {
+            id: MessageId::in_response_to(&msg_id),
             msg: MsgType::Client(ClientMsg::Process(ProcessMsg::QueryResponse {
                 response: QueryResponse::GetStoreCost(result),
-                id: MessageId::in_response_to(&msg_id),
                 correlation_id: msg_id,
             })),
-            section_source: false, // strictly this is not correct, but we don't expect responses to a response..
             dst: SrcLocation::EndUser(origin).to_dst(),
-            aggregation: Aggregation::None, // TODO: to_be_aggregated: Aggregation::AtDestination,
+            aggregation: false, // TODO: ture
         })
     }
 
@@ -162,14 +161,13 @@ impl<K: KeyManager> Payments<K> {
         };
         // returned for aggregation at client
         Ok(NodeDuty::Send(OutgoingMsg {
+            id: MessageId::in_response_to(&msg_id),
             msg: MsgType::Client(ClientMsg::Process(ProcessMsg::Event {
                 event: Event::PaymentReceived(receipt),
-                id: MessageId::in_response_to(&msg_id),
                 correlation_id: msg_id,
             })),
-            section_source: false,
             dst: DstLocation::EndUser(origin),
-            aggregation: Aggregation::AtDestination,
+            aggregation: true,
         }))
     }
 
@@ -186,7 +184,6 @@ impl<K: KeyManager> Payments<K> {
     pub async fn process_op(
         &mut self,
         cmd: ChargedOps,
-        _client_sig: ClientSig,
         msg_id: MessageId,
         origin: EndUser,
     ) -> Result<NodeDuty> {
@@ -194,20 +191,18 @@ impl<K: KeyManager> Payments<K> {
             Ok(result) => result,
             Err(e) => {
                 return Ok(NodeDuty::Send(OutgoingMsg {
+                    id: MessageId::in_response_to(&msg_id),
                     msg: MsgType::Client(ClientMsg::Process(ProcessMsg::CmdError {
                         error: CmdError::Payment(PaymentError(ErrorMsg::InvalidOperation(
                             e.to_string(),
                         ))),
-                        id: MessageId::in_response_to(&msg_id),
                         correlation_id: msg_id,
                     })),
-                    section_source: false, // strictly this is not correct, but we don't expect responses to a response..
                     dst: SrcLocation::EndUser(origin).to_dst(),
-                    aggregation: Aggregation::None, // TODO: to_be_aggregated: Aggregation::AtDestination,
+                    aggregation: false, // TODO: true
                 }));
             }
         };
-        // NodeDuty::HandleOp(op)
         Ok(NodeDuty::NoOp)
     }
 

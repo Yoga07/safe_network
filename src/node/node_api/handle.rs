@@ -376,10 +376,7 @@ impl Node {
                 Ok(NodeTask::Thread(handle))
             }
             NodeDuty::ProcessDataPayment {
-                id,
-                cmd,
-                client_sig,
-                origin,
+                id, cmd, origin, ..
             } => {
                 let elder = self.as_elder().await?.clone();
                 let handle = tokio::spawn(async move {
@@ -388,7 +385,7 @@ impl Node {
                             .payments
                             .write()
                             .await
-                            .process_op(cmd, client_sig, id, origin)
+                            .process_op(cmd, id, origin)
                             .await?,
                     ]))
                 });

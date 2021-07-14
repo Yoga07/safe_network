@@ -141,7 +141,7 @@ pub enum NodeDuty {
     },
     /// Process write of data
     ProcessWrite {
-        op: DebitableOp,
+        op: ChargedOps,
         msg_id: MessageId,
         data_auth: DataAuthority,
         origin: EndUser,
