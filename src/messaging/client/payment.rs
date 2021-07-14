@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{CmdError, Error, PaymentError, PointerEdit, PointerEditKind, QueryResponse};
+use crate::types::register::Address;
 use crate::types::{Chunk, PublicKey, SignatureShare, Token};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -133,6 +134,45 @@ pub enum ChargedOps {
         ///
         payment: PaymentReceipt,
     },
+}
+
+impl ChargedOps {
+    /// Creates a Response containing an error, with the Response variant corresponding to the
+    /// Request variant.
+    pub fn error(&self, error: Error) -> CmdError {
+        CmdError::Data(error)
+    }
+
+    /// Returns the address of the destination for request.
+    pub fn dst_address(&self) -> XorName {
+        match self {
+            Self::Upload { ref data, .. } => {
+                // TODO: take XOR of all the chunk's names}
+                XorName::random()
+            }
+            Self::PointerEdit { ops, payment } => {
+                // TODO: take XorName of the ops and XOR of all the names,
+                XorName::random()
+            }
+        }
+    }
+
+    /// Returns the address of the map.
+    pub fn address(&self) -> &Address {
+        match self {
+            Self::New(map) => map.address(),
+            Self::Delete(address) => address,
+            Self::Edit(ref op) => &op.address,
+        }
+    }
+
+    /// Owner of the RegisterWrite
+    pub fn owner(&self) -> Option<PublicKey> {
+        match self {
+            Self::New(data) => Some(data.owner()),
+            _ => None,
+        }
+    }
 }
 
 ///

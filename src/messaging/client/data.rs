@@ -16,6 +16,7 @@ use super::{
 use crate::types::PublicKey;
 use xor_name::XorName;
 
+use crate::messaging::client::ChargedOps;
 use serde::{Deserialize, Serialize};
 
 /// Data command operations. Creating, updating or removing data
@@ -30,6 +31,8 @@ pub enum DataCmd {
     Sequence(SequenceWrite),
     /// Register write operation
     Register(RegisterWrite),
+    /// Generic Operation
+    ChargedOp(ChargedOps),
 }
 
 /// Data command operations. Creating, updating or removing data
@@ -66,6 +69,7 @@ impl DataCmd {
             Map(c) => c.error(error),
             Sequence(c) => c.error(error),
             Register(c) => c.error(error),
+            ChargedOp(c) => c.error(error),
         }
     }
 
@@ -77,6 +81,7 @@ impl DataCmd {
             Map(c) => c.dst_address(),
             Sequence(c) => c.dst_address(),
             Register(c) => c.dst_address(),
+            ChargedOp(c) => c.dst_address(),
         }
     }
 
@@ -87,6 +92,7 @@ impl DataCmd {
             Self::Map(write) => write.owner(),
             Self::Sequence(write) => write.owner(),
             Self::Register(write) => write.owner(),
+            Self::ChargedOp(write) => write.owner(),
         }
     }
 }

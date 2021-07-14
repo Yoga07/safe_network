@@ -13,7 +13,7 @@ use crate::routing::{
     SectionAuthorityProviderUtils,
 };
 use crate::types::PublicKey;
-use bls::PublicKeySet;
+use bls::{PublicKeySet, PublicKeyShare, SignatureShare};
 use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use secured_linked_list::SecuredLinkedList;
 use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
@@ -46,6 +46,17 @@ impl Network {
         ))
     }
 
+    pub async fn sign_as_elder(
+        &self,
+        data: &[u8],
+        public_key: &bls::PublicKey,
+    ) -> Result<(usize, SignatureShare)> {
+        self.routing
+            .sign_as_elder(data, public_key)
+            .await
+            .map_err(Error::Routing)
+    }
+
     pub async fn age(&self) -> u8 {
         self.routing.age().await
     }
@@ -75,6 +86,10 @@ impl Network {
 
     pub async fn our_public_key_set(&self) -> Result<PublicKeySet> {
         self.routing.public_key_set().await.map_err(Error::Routing)
+    }
+
+    pub async fn our_index(&self) -> Result<usize> {
+        self.routing.our_index().await.map_err(Error::Routing)
     }
 
     pub async fn get_section_pk_by_name(&self, name: &XorName) -> Result<PublicKey> {

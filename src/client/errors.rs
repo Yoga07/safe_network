@@ -9,7 +9,7 @@
 pub use crate::messaging::client::Error as ErrorMessage;
 use crate::messaging::{
     client::{CmdError, PaymentError, QueryResponse},
-    MessageId,
+    Error as MessagingError, MessageId,
 };
 use crate::types::Error as DtError;
 use qp2p::Error as QuicP2pError;

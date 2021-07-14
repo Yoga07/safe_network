@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{Mapping, MsgContext};
+use crate::messaging::client::DataCmd;
 use crate::messaging::{
     client::{ClientMsg, ProcessMsg, ProcessingError},
     ClientSigned, EndUser, MessageId, SrcLocation,
@@ -74,24 +75,13 @@ fn map_client_process_msg(
             client_signed,
             origin,
         },
-        ProcessMsg::Cmd(cmd) => NodeDuty::ProcessWrite {
-            cmd,
-            msg_id,
-            client_signed,
-            origin,
-        },
-        ProcessMsg::Cmd {
-            cmd: Cmd::Debitable(cmd),
-            id,
-            client_sig,
-            ..
-        } =>
+        ProcessMsg::Cmd(DataCmd::ChargedOp(cmd)) =>
         // FIXME: ******** validate client signature!!!! *********
         {
             NodeDuty::ProcessDataPayment {
                 cmd,
-                id,
-                client_sig,
+                id: msg_id,
+                client_sig: client_signed,
                 origin,
             }
         }

@@ -293,7 +293,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "block-modes 0.8.1",
- "blsttc 2.0.1",
+ "blsttc",
  "itertools 0.9.0",
  "log",
  "rand 0.7.3",
@@ -313,27 +313,6 @@ dependencies = [
  "cc",
  "glob",
  "threadpool",
- "zeroize",
-]
-
-[[package]]
-name = "blsttc"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac565d887265714861790e736ec3c452cb56ca8b6ccc9a36b7118b4e621bc876"
-dependencies = [
- "blst",
- "byteorder",
- "ff",
- "group",
- "hex_fmt",
- "log",
- "pairing",
- "rand 0.7.3",
- "rand_chacha 0.2.2",
- "serde",
- "thiserror",
- "tiny-keccak 2.0.2",
  "zeroize",
 ]
 
@@ -2434,7 +2413,7 @@ dependencies = [
  "base64 0.10.1",
  "bincode",
  "bls_dkg",
- "blsttc 2.0.1",
+ "blsttc",
  "bytes 1.0.1",
  "cookie-factory",
  "crdts",
@@ -2520,7 +2499,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1194adb1e3a2641b89cbc5a7e44ac3b64aa7a824fc822d46b0f6c626129cf2bc"
 dependencies = [
  "bincode",
- "blsttc 2.0.1",
+ "blsttc",
  "itertools 0.9.0",
  "serde",
  "thiserror",
@@ -2713,9 +2692,12 @@ checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
 
 [[package]]
 name = "sn_dbc"
-version = "2.0.0"
+version = "1.6.7"
+source = "git+https://github.com/oetyng/sn_dbc?branch=integrate-to-sn#274c4fda8834dcdf813dc4ab368e0a3c201c94c1"
 dependencies = [
- "blsttc 1.0.1",
+ "async-trait",
+ "blsttc",
+ "futures",
  "hex 0.4.3",
  "quickcheck 1.0.3",
  "quickcheck_macros",
