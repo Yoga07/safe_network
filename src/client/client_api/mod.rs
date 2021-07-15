@@ -13,7 +13,7 @@ mod queries;
 mod register_apis;
 
 use crate::client::{config_handler::Config, connections::Session, errors::Error};
-use crate::messaging::data::{ChargedOps, CmdError, GuaranteedQuote, PaymentReceipt};
+use crate::messaging::data::{ChargedOps, CmdError, DataCmd, GuaranteedQuote, PaymentReceipt};
 use crate::types::{Chunk, ChunkAddress, Keypair, PublicKey};
 use lru::LruCache;
 use rand::rngs::OsRng;

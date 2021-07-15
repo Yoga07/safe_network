@@ -8,8 +8,6 @@
 
 use super::role::{ElderRole, Role};
 use crate::messaging::data::DataExchange;
-use crate::node::capacity::OpCost;
-use crate::node::payments::Payments;
 use crate::node::{
     capacity::OpCost,
     capacity::{AdultsStorageInfo, Capacity, CapacityReader, CapacityWriter},

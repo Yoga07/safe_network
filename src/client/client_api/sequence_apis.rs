@@ -8,7 +8,9 @@
 
 use super::Client;
 use crate::client::Error;
-use crate::messaging::data::{ChargedOps, DataQuery, QueryResponse, SequenceRead, SequenceWrite};
+use crate::messaging::data::{
+    ChargedOps, DataCmd, DataQuery, QueryResponse, SequenceRead, SequenceWrite,
+};
 use crate::types::{
     PublicKey, Sequence, SequenceAddress, SequenceEntries, SequenceEntry, SequenceIndex,
     SequencePermissions, SequencePrivatePermissions, SequencePrivatePolicy,

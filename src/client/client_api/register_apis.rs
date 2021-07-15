@@ -8,7 +8,9 @@
 
 use super::Client;
 use crate::client::Error;
-use crate::messaging::data::{ChargedOps, DataQuery, QueryResponse, RegisterRead, RegisterWrite};
+use crate::messaging::data::{
+    ChargedOps, DataCmd, DataQuery, QueryResponse, RegisterRead, RegisterWrite,
+};
 use crate::types::{
     register::{
         Address, Entry, EntryHash, Permissions, Policy, PrivatePermissions, PrivatePolicy,

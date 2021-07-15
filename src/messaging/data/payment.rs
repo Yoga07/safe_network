@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{CmdError, Error, PaymentError, PointerEdit, PointerEditKind, QueryResponse};
-use crate::types::register::Address;
+use super::{CmdError, Error, PaymentError, QueryResponse};
+use crate::messaging::data::{ChunkWrite, MapWrite, RegisterWrite, SequenceWrite};
 use crate::types::{Chunk, PublicKey, SignatureShare, Token};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -117,13 +117,13 @@ pub struct PaymentReceipt {
 /// It is then guaranteed to be accepted (at DataSection), if payment provided
 /// matches the quote, and the dbcs are valid.
 
-///
+/// Data command operations. Creating, updating or removing data
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub enum ChargedOps {
     ///
     Upload {
         ///
-        data: BTreeSet<Chunk>,
+        data: BTreeSet<ChunkWrite>,
         ///
         payment: PaymentReceipt,
     },
@@ -147,7 +147,7 @@ impl ChargedOps {
     pub fn dst_address(&self) -> XorName {
         match self {
             Self::Upload { ref data, .. } => {
-                // TODO: take XOR of all the chunk's names}
+                // TODO: take XOR of all the chunk's names
                 XorName::random()
             }
             Self::PointerEdit { ops, payment } => {
@@ -160,9 +160,8 @@ impl ChargedOps {
     /// Returns the address of the map.
     pub fn address(&self) -> &Address {
         match self {
-            Self::New(map) => map.address(),
-            Self::Delete(address) => address,
-            Self::Edit(ref op) => &op.address,
+            Self::Upload { data, .. } => map.address(),
+            Self::PointerEdit { ops, .. } => address,
         }
     }
 
@@ -173,6 +172,38 @@ impl ChargedOps {
             _ => None,
         }
     }
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+pub enum PointerEdit {
+    /// Map write operation
+    Map(MapWrite),
+    /// Sequence write operation
+    Sequence(SequenceWrite),
+    /// Register write operation
+    Register(RegisterWrite),
+}
+
+impl PointerEdit {
+    pub fn address(&self) -> &Address {
+        match self {
+            Self::Map(write) => write.address(),
+            Self::Sequence(write) => write.address(),
+            Self::Register(write) => write.address(),
+        }
+    }
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+pub enum PointerEditKind {
+    /// Map write operation
+    Map,
+    /// Sequence write operation
+    Sequence,
+    /// Register write operation
+    Register,
 }
 
 ///

@@ -8,9 +8,8 @@
 
 use super::Session;
 use crate::client::Error;
-use crate::messaging::client::PaymentError;
 use crate::messaging::{
-    data::{CmdError, DataMsg, ProcessMsg},
+    data::{CmdError, DataMsg, PaymentError, ProcessMsg},
     section_info::{GetSectionResponse, SectionInfoMsg},
     MessageId, MessageType, SectionAuthorityProvider, WireMsg,
 };

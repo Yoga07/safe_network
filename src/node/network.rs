@@ -13,8 +13,7 @@ use crate::routing::{
     SectionAuthorityProviderUtils,
 };
 use crate::types::PublicKey;
-use bls::{PublicKey as BlsPublicKey, PublicKeySet};
-use bls::{PublicKeySet, PublicKeyShare, SignatureShare};
+use bls::{PublicKey as BlsPublicKey, PublicKeySet, SignatureShare};
 use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use secured_linked_list::SecuredLinkedList;
 use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};

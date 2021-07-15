@@ -14,10 +14,10 @@ use self::reward_calc::distribute_rewards;
 pub use self::reward_wallets::RewardWallets;
 use crate::{
     messaging::{
-        client::{
-            ChargedOps, ClientMsg, CmdError, CostInquiry, Error as ErrorMsg, Event,
-            GuaranteedQuote, PaymentError, PaymentQuote, PaymentReceiptShare, ProcessMsg,
-            QueryResponse, RegisterPayment,
+        data::{
+            ChargedOps, CmdError, CostInquiry, DataMsg, Error as ErrorMsg, Event, GuaranteedQuote,
+            PaymentError, PaymentQuote, PaymentReceiptShare, ProcessMsg, QueryResponse,
+            RegisterPayment,
         },
         DstLocation, EndUser, MessageId, SrcLocation,
     },
@@ -99,10 +99,10 @@ impl<K: KeyManager> Payments<K> {
         let result = self
             .cost(inquiry)
             .await
-            .map_err(|e| crate::messaging::client::Error::InvalidOperation(e.to_string()));
+            .map_err(|e| crate::messaging::data::Error::InvalidOperation(e.to_string()));
         NodeDuty::Send(OutgoingMsg {
             id: MessageId::in_response_to(&msg_id),
-            msg: MsgType::Client(ClientMsg::Process(ProcessMsg::QueryResponse {
+            msg: MsgType::Client(DataMsg::Process(ProcessMsg::QueryResponse {
                 response: QueryResponse::GetStoreCost(result),
                 correlation_id: msg_id,
             })),
@@ -162,7 +162,7 @@ impl<K: KeyManager> Payments<K> {
         // returned for aggregation at client
         Ok(NodeDuty::Send(OutgoingMsg {
             id: MessageId::in_response_to(&msg_id),
-            msg: MsgType::Client(ClientMsg::Process(ProcessMsg::Event {
+            msg: MsgType::Client(DataMsg::Process(ProcessMsg::Event {
                 event: Event::PaymentReceived(receipt),
                 correlation_id: msg_id,
             })),
@@ -192,7 +192,7 @@ impl<K: KeyManager> Payments<K> {
             Err(e) => {
                 return Ok(NodeDuty::Send(OutgoingMsg {
                     id: MessageId::in_response_to(&msg_id),
-                    msg: MsgType::Client(ClientMsg::Process(ProcessMsg::CmdError {
+                    msg: MsgType::Client(DataMsg::Process(ProcessMsg::CmdError {
                         error: CmdError::Payment(PaymentError(ErrorMsg::InvalidOperation(
                             e.to_string(),
                         ))),
@@ -314,7 +314,7 @@ impl<K: KeyManager> Payments<K> {
     //         Err(e) => {
     //             warn!("Payment failed: {:?}", e);
     //             Ok(NodeDuty::Send(OutgoingMsg {
-    //                 msg: MsgType::Client(ClientMsg::Process(ProcessMsg::CmdError {
+    //                 msg: MsgType::Client(DataMsg::Process(ProcessMsg::CmdError {
     //                     error: CmdError::Payment(e.into()),
     //                     id: MessageId::in_response_to(&msg_id),
     //                     correlation_id: msg_id,

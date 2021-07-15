@@ -7,9 +7,8 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{Mapping, MsgContext};
-use crate::messaging::client::DataCmd;
 use crate::messaging::{
-    data::{DataMsg, ProcessMsg, ProcessingError},
+    data::{DataCmd, DataMsg, ProcessMsg, ProcessingError},
     DataAuthority, DstLocation, EndUser, MessageId, SrcLocation,
 };
 use crate::node::{
