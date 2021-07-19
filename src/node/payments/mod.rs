@@ -112,16 +112,12 @@ impl<K: KeyManager> Payments<K> {
     }
 
     async fn cost(&self, inquiry: CostInquiry) -> Result<PaymentQuote> {
-        let units = match &inquiry {
-            CostInquiry::Upload(chunks) => {
-                if chunks.is_empty() {
-                    return Err(Error::InvalidOperation("No data provided".to_string()));
-                } else {
-                    chunks.len() as u64 * MAX_CHUNK_SIZE_IN_BYTES
-                }
-            }
-            CostInquiry::PointerEdit(edits) => edits.len() as u64 * MAX_CHUNK_SIZE_IN_BYTES / 10,
-        };
+        if inquiry.uploads.is_empty() && inquiry.edits.is_empty() {
+            return Err(Error::InvalidOperation("No data provided".to_string()));
+        }
+
+        let units = (inquiry.uploads.len() as u64 * MAX_CHUNK_SIZE_IN_BYTES)
+            + (inquiry.edits.len() as u64 * MAX_CHUNK_SIZE_IN_BYTES / 10);
 
         let cost = self.cost.from(units).await?;
         info!("Cost for {:?} units: {}", units, cost);

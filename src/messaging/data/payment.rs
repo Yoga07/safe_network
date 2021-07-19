@@ -208,11 +208,11 @@ pub enum PointerEditKind {
 
 ///
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub enum CostInquiry {
-    ///
-    Upload(BTreeSet<XorName>),
-    ///
-    PointerEdit(BTreeSet<PointerEditKind>),
+pub struct CostInquiry {
+    /// Batch of chunks to be uploaded
+    pub uploads: BTreeSet<XorName>,
+    /// Batch of edits to be edited
+    pub edits: BTreeSet<PointerEditKind>,
 }
 
 impl PaymentCmd {
