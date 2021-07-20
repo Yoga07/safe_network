@@ -13,7 +13,9 @@ mod queries;
 mod register_apis;
 
 use crate::client::{config_handler::Config, connections::Session, errors::Error};
-use crate::messaging::data::{ChargedOps, CmdError, DataCmd, GuaranteedQuote, PaymentReceipt};
+use crate::messaging::data::{
+    ChargedOps, CmdError, CostInquiry, DataCmd, GuaranteedQuote, PaymentReceipt, PointerEditKind,
+};
 use crate::types::{Chunk, ChunkAddress, Keypair, PublicKey};
 use lru::LruCache;
 use rand::rngs::OsRng;
@@ -131,9 +133,9 @@ impl Client {
 
     // Private helper to obtain payment proof for a data command, send it to the network,
     // and also apply the payment to local replica actor.
-    async fn pay_and_send_data_command(&self, cmd: DataCmd) -> Result<(), Error> {
+    async fn pay_and_send_data_command(&self, cmds: BTreeSet<DataCmd>) -> Result<(), Error> {
         // Get quote for write
-        let quote = self.get_quote().await?;
+        let quote = self.get_quote(cmds).await?;
         // Generate payment matching the quote
         let payment = self.generate_payment(quote).await?;
 
@@ -147,7 +149,27 @@ impl Client {
     }
 
     ///
-    pub async fn get_quote(&self) -> Result<GuaranteedQuote, Error> {
+    pub async fn get_quote(&self, cmds: BTreeSet<DataCmd>) -> Result<GuaranteedQuote, Error> {
+        let mut inquiry = CostInquiry {
+            uploads: BTreeSet::new(),
+            edits: BTreeSet::new(),
+        };
+        for cmd in cmds {
+            match cmd {
+                DataCmd::Chunk(write) => inquiry.uploads.insert(cmd.dst_address()),
+                DataCmd::Map(write) => inquiry
+                    .edits
+                    .insert(PointerEditKind::Map(write.dst_address())),
+                DataCmd::Register(write) => inquiry
+                    .edits
+                    .insert(PointerEditKind::Register(write.dst_address())),
+                DataCmd::Sequence(write) => inquiry
+                    .edits
+                    .insert(PointerEditKind::Sequence(write.dst_address())),
+            }
+        }
+
+        self.session.fetch_quote(inquiry);
         unimplemented!()
     }
 

@@ -25,7 +25,7 @@ pub use self::{
     errors::{Error, Result},
     payment::{
         ChargedOps, CostInquiry, GuaranteedQuote, GuaranteedQuoteShare, PaymentCmd, PaymentQuote,
-        PaymentReceipt, PaymentReceiptShare, RegisterPayment,
+        PaymentReceipt, PaymentReceiptShare, PointerEdit, PointerEditKind, RegisterPayment,
     },
     query::DataQuery,
     register::{RegisterCmd, RegisterRead, RegisterWrite},

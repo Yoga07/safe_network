@@ -10,12 +10,14 @@ mod listeners;
 mod messaging;
 
 use crate::client::Error;
+use crate::messaging::data::{CostInquiry, PaymentReceipt};
 use crate::messaging::{
     data::{CmdError, QueryResponse},
     MessageId,
 };
 use crate::types::PublicKey;
 use bls::PublicKeySet;
+use itertools::Itertools;
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use std::{
     borrow::Borrow,
@@ -45,9 +47,9 @@ pub(super) struct Session {
     incoming_err_sender: Arc<Sender<CmdError>>,
     endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
-    connected_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
+    connected_elders: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
     /// all elders we know about from SectionInfo messages
-    all_known_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
+    all_known_elders: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
     section_prefix: Arc<RwLock<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
 }
@@ -98,5 +100,30 @@ impl Session {
                 Err(Error::NotBootstrapped)
             }
         }
+    }
+
+    pub(super) async fn fetch_quote(&self, inquiry: CostInquiry) -> Result<PaymentReceipt, Error> {
+        let payment_xorname = inquiry.payment_xorname()?;
+        let elders = self
+            .all_known_elders
+            .read()
+            .await
+            .clone()
+            .into_iter()
+            .sorted_by(|(lhs_name, _), (rhs_name, _)| {
+                payment_xorname.cmp_distance(&lhs_name, &rhs_name)
+            })
+            .map(|(addr, _)| addr)
+            .collect::<Vec<SocketAddr>>();
+
+        self.send_inquiry(elders, inquiry)
+    }
+
+    fn send_inquiry(
+        &self,
+        elders: Vec<SocketAddr>,
+        inquiry: CostInquiry,
+    ) -> Result<PaymentReceipt, Error> {
+        self.send_cmd()
     }
 }

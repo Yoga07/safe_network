@@ -129,11 +129,7 @@ impl Session {
         let original_known_elders = self.all_known_elders.read().await.clone();
 
         // Change this once sn_messaging is updated
-        let received_elders = sap
-            .elders
-            .iter()
-            .map(|(name, addr)| (*addr, *name))
-            .collect::<BTreeMap<_, _>>();
+        let received_elders = sap.elders.clone();
 
         // Obtain the addresses of the Elders
         trace!(
@@ -165,11 +161,11 @@ impl Session {
 
         if original_known_elders != received_elders {
             debug!("Connecting to new set of Elders: {:?}", received_elders);
-            let new_elder_addresses = received_elders.keys().cloned().collect::<BTreeSet<_>>();
+            let new_elder_addresses = received_elders.values().cloned().collect::<BTreeSet<_>>();
             let updated_contacts = new_elder_addresses.iter().cloned().collect::<Vec<_>>();
             let old_elders = original_known_elders
                 .iter()
-                .filter_map(|(peer_addr, _)| {
+                .filter_map(|(_, peer_addr)| {
                     if !new_elder_addresses.contains(peer_addr) {
                         Some(*peer_addr)
                     } else {

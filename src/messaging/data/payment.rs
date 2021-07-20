@@ -8,7 +8,7 @@
 
 use super::{CmdError, Error, PaymentError, QueryResponse};
 use crate::messaging::data::{ChunkWrite, MapWrite, RegisterWrite, SequenceWrite};
-use crate::types::{Chunk, PublicKey, SignatureShare, Token};
+use crate::types::{Chunk, DataAddress, PublicKey, SignatureShare, Token};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -119,21 +119,13 @@ pub struct PaymentReceipt {
 
 /// Data command operations. Creating, updating or removing data
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub enum ChargedOps {
+pub struct ChargedOps {
     ///
-    Upload {
-        ///
-        data: BTreeSet<ChunkWrite>,
-        ///
-        payment: PaymentReceipt,
-    },
+    uploads: BTreeSet<ChunkWrite>,
     ///
-    PointerEdit {
-        ///
-        ops: BTreeSet<PointerEdit>,
-        ///
-        payment: PaymentReceipt,
-    },
+    edits: BTreeSet<PointerEdit>,
+    ///
+    payment: PaymentReceipt,
 }
 
 impl ChargedOps {
@@ -157,11 +149,13 @@ impl ChargedOps {
         }
     }
 
-    /// Returns the address of the map.
-    pub fn address(&self) -> &Address {
+    /// Returns the Dst XorName of the Ops.
+    pub fn address(&self) -> &DataAddress {
         match self {
-            Self::Upload { data, .. } => map.address(),
-            Self::PointerEdit { ops, .. } => address,
+            Self::Upload { data, .. } => data.address(),
+            Self::PointerEdit { ops, .. } => ops
+                .iter()
+                .fold(XorName::random(), |xor, edit| edit.address()),
         }
     }
 
@@ -186,11 +180,11 @@ pub enum PointerEdit {
 }
 
 impl PointerEdit {
-    pub fn address(&self) -> &Address {
+    pub fn address(&self) -> DataAddress {
         match self {
-            Self::Map(write) => write.address(),
-            Self::Sequence(write) => write.address(),
-            Self::Register(write) => write.address(),
+            Self::Map(write) => DataAddress::Map(*write.address()),
+            Self::Sequence(write) => DataAddress::Sequence(*write.address()),
+            Self::Register(write) => DataAddress::Register(*write.address()),
         }
     }
 }
@@ -199,11 +193,11 @@ impl PointerEdit {
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
 pub enum PointerEditKind {
     /// Map write operation
-    Map,
+    Map(XorName),
     /// Sequence write operation
-    Sequence,
+    Sequence(XorName),
     /// Register write operation
-    Register,
+    Register(XorName),
 }
 
 ///
@@ -213,6 +207,18 @@ pub struct CostInquiry {
     pub uploads: BTreeSet<XorName>,
     /// Batch of edits to be edited
     pub edits: BTreeSet<PointerEditKind>,
+}
+
+impl CostInquiry {
+    pub fn payment_xorname(&self) -> Result<XorName, CmdError> {
+        if self.uploads.is_empty() && self.edits.is_empty() {
+            return Err(CmdError::Data(Error::InvalidOperation(
+                "Empty inquiry".to_string(),
+            )));
+        }
+        // TODO: XOR all the XorNames of uploads and edits
+        Ok(XorName::random())
+    }
 }
 
 impl PaymentCmd {

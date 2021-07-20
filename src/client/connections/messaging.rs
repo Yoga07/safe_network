@@ -102,7 +102,7 @@ impl Session {
 
         debug!(
             "Successfully obtained the list of Elders to send all messages to: {:?}",
-            self.connected_elders.read().await.keys()
+            self.connected_elders.read().await.values()
         );
 
         Ok(())
@@ -231,7 +231,7 @@ impl Session {
             .await
             .clone()
             .into_iter()
-            .sorted_by(|(_, lhs_name), (_, rhs_name)| data_name.cmp_distance(&lhs_name, &rhs_name))
+            .sorted_by(|(lhs_name, _), (rhs_name, _)| data_name.cmp_distance(&lhs_name, &rhs_name))
             .take(NUM_OF_ELDERS_SUBSET_FOR_QUERIES)
             .map(|(addr, _)| addr)
             .collect();
