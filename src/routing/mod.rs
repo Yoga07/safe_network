@@ -23,7 +23,6 @@
 // ############################################################################
 // Public API
 // ############################################################################
-pub use self::error::AggregatorError;
 pub use self::error::ProposalError;
 pub use self::{
     cache::Cache,

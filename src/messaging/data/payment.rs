@@ -10,6 +10,7 @@ use super::{CmdError, Error, PaymentError, QueryResponse};
 use crate::messaging::data::{ChunkWrite, MapWrite, RegisterWrite, SequenceWrite};
 use crate::types::{Chunk, DataAddress, PublicKey, SignatureShare, Token};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -121,55 +122,15 @@ pub struct PaymentReceipt {
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChargedOps {
     ///
-    uploads: BTreeSet<ChunkWrite>,
+    uploads: Vec<ChunkWrite>,
     ///
-    edits: BTreeSet<PointerEdit>,
+    edits: Vec<PointerEdit>,
     ///
     payment: PaymentReceipt,
 }
 
-impl ChargedOps {
-    /// Creates a Response containing an error, with the Response variant corresponding to the
-    /// Request variant.
-    pub fn error(&self, error: Error) -> CmdError {
-        CmdError::Data(error)
-    }
-
-    /// Returns the address of the destination for request.
-    pub fn dst_address(&self) -> XorName {
-        match self {
-            Self::Upload { ref data, .. } => {
-                // TODO: take XOR of all the chunk's names
-                XorName::random()
-            }
-            Self::PointerEdit { ops, payment } => {
-                // TODO: take XorName of the ops and XOR of all the names,
-                XorName::random()
-            }
-        }
-    }
-
-    /// Returns the Dst XorName of the Ops.
-    pub fn address(&self) -> &DataAddress {
-        match self {
-            Self::Upload { data, .. } => data.address(),
-            Self::PointerEdit { ops, .. } => ops
-                .iter()
-                .fold(XorName::random(), |xor, edit| edit.address()),
-        }
-    }
-
-    /// Owner of the RegisterWrite
-    pub fn owner(&self) -> Option<PublicKey> {
-        match self {
-            Self::New(data) => Some(data.owner()),
-            _ => None,
-        }
-    }
-}
-
 #[allow(clippy::large_enum_variant)]
-#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub enum PointerEdit {
     /// Map write operation
     Map(MapWrite),

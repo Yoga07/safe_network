@@ -18,6 +18,16 @@
 //! - The [`section_info`] module defines the queries and responses for section information – these
 //!   may be sent by both clients and nodes.
 
+pub use self::{
+    authority::{BlsShareSigned, DataAuthority, DataSigned, NodeSigned, SectionSigned},
+    errors::{Error, Result},
+    location::{DstLocation, EndUser, SocketId, SrcLocation},
+    msg_id::{MessageId, MESSAGE_ID_LEN},
+    msg_kind::MsgKind,
+    sap::SectionAuthorityProvider,
+    serialisation::{MessageType, NodeMsgAuthority, WireMsg},
+};
+
 /// Data messages that clients and nodes can send.
 pub mod data;
 /// Messages that nodes can exchange on the network.
@@ -26,6 +36,8 @@ pub mod node;
 pub mod section_info;
 /// The wire format and message (de)serialization API.
 pub mod serialisation;
+/// Generic bls signature aggregator
+pub mod signature_aggregator;
 
 // Message authority - keys and signatures.
 mod authority;
@@ -39,13 +51,3 @@ mod msg_id;
 mod msg_kind;
 // SectionAuthorityProvider
 mod sap;
-
-pub use self::{
-    authority::{BlsShareSigned, DataAuthority, DataSigned, NodeSigned, SectionSigned},
-    errors::{Error, Result},
-    location::{DstLocation, EndUser, SocketId, SrcLocation},
-    msg_id::{MessageId, MESSAGE_ID_LEN},
-    msg_kind::MsgKind,
-    sap::SectionAuthorityProvider,
-    serialisation::{MessageType, NodeMsgAuthority, WireMsg},
-};
