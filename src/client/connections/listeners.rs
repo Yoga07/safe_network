@@ -126,7 +126,7 @@ impl Session {
 
     // Apply updated info to a network session, and trigger connections
     async fn update_session_info(&mut self, sap: &SectionAuthorityProvider) -> Result<(), Error> {
-        let original_known_elders = self.all_known_elders.read().await.clone();
+        let original_known_elders = self.all_known_sections.read().await.clone();
 
         // Change this once sn_messaging is updated
         let received_elders = sap.elders.clone();
@@ -155,8 +155,8 @@ impl Session {
 
         {
             // Update session elders
-            let mut session_elders = self.all_known_elders.write().await;
-            *session_elders = received_elders.clone();
+            let mut session_elders = self.all_known_sections.write().await;
+            *session_elders.insert(sap.prefix, sap.elders);
         }
 
         if original_known_elders != received_elders {

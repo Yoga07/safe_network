@@ -10,13 +10,16 @@ mod listeners;
 mod messaging;
 
 use crate::client::Error;
-use crate::messaging::data::{CostInquiry, PaymentReceipt};
+use crate::messaging::data::{CostInquiry, GuaranteedQuote, PaymentReceipt};
+use crate::messaging::node::{KeyedSig, SigShare};
+use crate::messaging::signature_aggregator::{Error as AggregatorError, SignatureAggregator};
 use crate::messaging::{
     data::{CmdError, QueryResponse},
     MessageId,
 };
 use crate::types::PublicKey;
 use bls::PublicKeySet;
+use bytes::Bytes;
 use itertools::Itertools;
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use std::{
@@ -46,12 +49,13 @@ pub(super) struct Session {
     pending_queries: PendingQueryResponses,
     incoming_err_sender: Arc<Sender<CmdError>>,
     endpoint: Option<Endpoint>,
-    /// elders we've managed to connect to
-    connected_elders: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
+    /// Elders of our section
+    our_section: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
     /// all elders we know about from SectionInfo messages
-    all_known_elders: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
+    all_known_sections: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
     section_prefix: Arc<RwLock<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
+    aggregator: SignatureAggregator,
 }
 
 impl Session {
@@ -68,16 +72,17 @@ impl Session {
             incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
             section_key_set: Arc::new(RwLock::new(None)),
-            connected_elders: Arc::new(RwLock::new(Default::default())),
-            all_known_elders: Arc::new(RwLock::new(Default::default())),
+            our_section: Arc::new(RwLock::new(Default::default())),
+            all_known_sections: Arc::new(RwLock::new(Default::default())),
             section_prefix: Arc::new(RwLock::new(None)),
             is_connecting_to_new_elders: false,
+            aggregator: SignatureAggregator::new(),
         })
     }
 
     /// Get the elders count of our section elders as provided by SectionInfo
     pub(super) async fn known_elders_count(&self) -> usize {
-        self.all_known_elders.read().await.len()
+        self.all_known_sections.read().await.len()
     }
 
     pub(super) fn endpoint(&self) -> Result<&Endpoint, Error> {
@@ -102,28 +107,40 @@ impl Session {
         }
     }
 
-    pub(super) async fn fetch_quote(&self, inquiry: CostInquiry) -> Result<PaymentReceipt, Error> {
+    pub(super) async fn fetch_quote(&self, inquiry: CostInquiry) -> Result<GuaranteedQuote, Error> {
         let payment_xorname = inquiry.payment_xorname()?;
         let elders = self
-            .all_known_elders
+            .all_known_sections
             .read()
             .await
             .clone()
             .into_iter()
             .sorted_by(|(lhs_name, _), (rhs_name, _)| {
-                payment_xorname.cmp_distance(&lhs_name, &rhs_name)
+                payment_xorname.cmp_distance(lhs_name, rhs_name)
             })
-            .map(|(addr, _)| addr)
+            .map(|(_, addrs)| addrs.values())
             .collect::<Vec<SocketAddr>>();
 
-        self.send_inquiry(elders, inquiry)
+        self.send_inquiry(inquiry, elders)
     }
 
-    fn send_inquiry(
-        &self,
-        elders: Vec<SocketAddr>,
-        inquiry: CostInquiry,
-    ) -> Result<PaymentReceipt, Error> {
-        self.send_cmd()
+    pub fn aggregate_incoming_message(
+        &mut self,
+        bytes: Bytes,
+        sig_share: SigShare,
+    ) -> Result<Option<Bytes>, Error> {
+        match self.aggregator.add(&bytes, sig_share) {
+            Ok(key_sig) => {
+                if key_sig.public_key.verify(&key_sig.signature, &bytes) {
+                    Ok(Some(bytes))
+                } else {
+                    Err(Error::Aggregation(
+                        "Failed to verify aggregated signature".to_string(),
+                    ))
+                }
+            }
+            Err(AggregatorError::NotEnoughShares) => Ok(None),
+            Err(e) => Err(Error::Aggregation(e.to_string())),
+        }
     }
 }

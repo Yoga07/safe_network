@@ -8,6 +8,7 @@
 
 use super::{QueryResult, Session};
 use crate::client::Error;
+use crate::messaging::data::{CostInquiry, GuaranteedQuote, PaymentReceipt};
 use crate::messaging::{
     data::{ChunkRead, DataCmd, DataQuery, QueryResponse},
     section_info::SectionInfoMsg,
@@ -102,7 +103,7 @@ impl Session {
 
         debug!(
             "Successfully obtained the list of Elders to send all messages to: {:?}",
-            self.connected_elders.read().await.values()
+            self.our_section.read().await.values()
         );
 
         Ok(())
@@ -118,7 +119,7 @@ impl Session {
         let endpoint = self.endpoint()?.clone();
 
         let elders = self
-            .connected_elders
+            .our_section
             .read()
             .await
             .keys()
@@ -191,6 +192,22 @@ impl Session {
         Ok(())
     }
 
+    pub(crate) async fn send_inquiry(
+        &self,
+        inquiry: CostInquiry,
+        elders: Vec<SocketAddr>,
+    ) -> Result<GuaranteedQuote, Error> {
+        let endpoint = self.endpoint()?;
+
+        // let wire_msg = WireMsg::new_msg(MessageId::new(), Bytes::new(), MsgKind::DataMsg(ClientSigned{ public_key: (), signature: () }));
+
+        for elder in elders {
+            // endpoint.send_message()
+        }
+
+        unimplemented!()
+    }
+
     /// Send a `DataMsg` to the network awaiting for the response.
     pub(crate) async fn send_query(
         &self,
@@ -226,7 +243,7 @@ impl Session {
         // We select the NUM_OF_ELDERS_SUBSET_FOR_QUERIES closest
         // connected Elders to the data we are querying
         let elders: Vec<SocketAddr> = self
-            .connected_elders
+            .our_section
             .read()
             .await
             .clone()
@@ -477,12 +494,12 @@ impl Session {
             warn!("Not attempted to connect, insufficient elders yet known");
         }
 
-        let new_elders = self.all_known_elders.read().await.clone();
+        let new_elders = self.all_known_sections.read().await.clone();
         let peers_len = new_elders.len();
 
         trace!("We now know our {} Elders.", peers_len);
         {
-            let mut session_elders = self.connected_elders.write().await;
+            let mut session_elders = self.our_section.write().await;
             *session_elders = new_elders;
         }
 
