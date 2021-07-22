@@ -14,8 +14,10 @@ mod register_apis;
 
 use crate::client::{config_handler::Config, connections::Session, errors::Error};
 use crate::messaging::data::{
-    ChargedOps, CmdError, CostInquiry, DataCmd, GuaranteedQuote, PaymentReceipt, PointerEditKind,
+    ChargedOps, CmdError, CostInquiry, DataCmd, DataMsg, GuaranteedQuote, PaymentReceipt,
+    PointerEditKind, ProcessMsg,
 };
+use crate::messaging::{ClientSigned, WireMsg};
 use crate::types::{Chunk, ChunkAddress, Keypair, PublicKey};
 use lru::LruCache;
 use rand::rngs::OsRng;
@@ -88,10 +90,10 @@ impl Client {
         // Incoming error notifiers
         let (err_sender, err_receiver) = tokio::sync::mpsc::channel::<CmdError>(10);
 
-        // Create the session with the network
-        let mut session = Session::new(qp2p_config, err_sender)?;
-
         let client_pk = keypair.public_key();
+
+        // Create the session with the network
+        let mut session = Session::new(client_pk, qp2p_config, err_sender)?;
 
         // Bootstrap to the network, connecting to the section responsible
         // for our client public key
@@ -140,11 +142,13 @@ impl Client {
         let payment = self.generate_payment(quote).await?;
 
         // The _actual_ message
-        let cmd = DataCmd::ChargedOp(ChargedOps::Upload {
-            data: BTreeSet::new(),
-            payment,
-        });
+        let cmd = ChargedOps {
+            uploads: Vec::new(),
+            edits: Vec::new(),
+            payment: payment,
+        };
 
+        // Send the message to the network
         self.send_cmd(cmd).await
     }
 
@@ -154,22 +158,32 @@ impl Client {
             uploads: BTreeSet::new(),
             edits: BTreeSet::new(),
         };
+
         for cmd in cmds {
-            match cmd {
-                DataCmd::Chunk(write) => inquiry.uploads.insert(cmd.dst_address()),
-                DataCmd::Map(write) => inquiry
-                    .edits
-                    .insert(PointerEditKind::Map(write.dst_address())),
+            let _ = match cmd {
+                DataCmd::Chunk(write) => inquiry.uploads.insert(write.dst_address()),
                 DataCmd::Register(write) => inquiry
                     .edits
                     .insert(PointerEditKind::Register(write.dst_address())),
                 DataCmd::Sequence(write) => inquiry
                     .edits
                     .insert(PointerEditKind::Sequence(write.dst_address())),
-            }
+            };
         }
 
-        self.session.fetch_quote(inquiry);
+        let payment_xorname = inquiry.payment_xorname()?;
+
+        self.session.send_get_section_query(payment_xorname).await;
+        let msg = DataMsg::Process(ProcessMsg::CostInquiry(inquiry));
+        let serialized = WireMsg::serialize_msg_payload(&msg)?;
+
+        let client_signed = ClientSigned {
+            public_key: self.keypair.public_key(),
+            signature: self.keypair.sign(&serialized),
+        };
+
+        self.session
+            .send_inquiry(serialized, payment_xorname, client_signed);
         unimplemented!()
     }
 

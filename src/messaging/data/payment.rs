@@ -76,7 +76,7 @@ pub struct GuaranteedQuoteShare {
     ///
     pub sig: SignatureShare,
     ///
-    pub key: bls::PublicKey,
+    pub key_set: bls::PublicKeySet,
 }
 
 ///
@@ -132,8 +132,6 @@ pub struct ChargedOps {
 #[allow(clippy::large_enum_variant)]
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub enum PointerEdit {
-    /// Map write operation
-    Map(MapWrite),
     /// Sequence write operation
     Sequence(SequenceWrite),
     /// Register write operation

@@ -106,7 +106,7 @@ impl Comm {
                 .await
                 .map_err(|err| {
                     error!(
-                        "Sending message (msg_id: {}) to {:?} (name {:?}) failed with {}",
+                        "Sending message (msg_id: {}) to {:?} (name {:?}) failed with {:?}",
                         wire_msg.msg_id(),
                         addr,
                         name,
@@ -139,7 +139,7 @@ impl Comm {
             .is_reachable(peer)
             .await
             .map_err(|err| {
-                info!("Peer {} is NOT externally reachable: {}", peer, err);
+                info!("Peer {} is NOT externally reachable: {:?}", peer, err);
                 Error::AddressNotReachable { err }
             })
             .map(|()| {
@@ -479,7 +479,7 @@ mod tests {
 
         // Send the first message.
         let key0 = bls::SecretKey::random().public_key();
-        let query = SectionInfoMsg::GetSectionQuery(PublicKey::Bls(key0));
+        let query = SectionInfoMsg::GetSectionQuery(XorName::from(PublicKey::Bls(key0)));
         let dst_location = DstLocation::Node {
             name,
             section_pk: key0,
@@ -503,7 +503,7 @@ mod tests {
 
         // Send the second message.
         let key1 = bls::SecretKey::random().public_key();
-        let query = SectionInfoMsg::GetSectionQuery(PublicKey::Bls(key1));
+        let query = SectionInfoMsg::GetSectionQuery(XorName::from(PublicKey::Bls(key1)));
         let dst_location = DstLocation::Node {
             name,
             section_pk: key1,
@@ -565,7 +565,7 @@ mod tests {
 
     fn new_section_info_message() -> Result<WireMsg> {
         let random_bls_pk = bls::SecretKey::random().public_key();
-        let query = SectionInfoMsg::GetSectionQuery(PublicKey::Bls(random_bls_pk));
+        let query = SectionInfoMsg::GetSectionQuery(XorName::from(PublicKey::Bls(random_bls_pk)));
         let dst_location = DstLocation::Node {
             name: XorName::random(),
             section_pk: bls::SecretKey::random().public_key(),

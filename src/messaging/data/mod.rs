@@ -73,7 +73,7 @@ pub enum ProcessMsg {
     /// There will be no response to these messages on success, only if something went wrong. Due to
     /// the eventually consistent nature of the network, it may be necessary to continually retry
     /// operations that depend on the effects of mutations.
-    Cmd(DataCmd),
+    Cmd(ChargedOps),
     /// A read-only operation.
     ///
     /// Senders should eventually receive either a corresponding [`QueryResponse`] or an error in
@@ -87,6 +87,12 @@ pub enum ProcessMsg {
         /// ID of the query message.
         correlation_id: MessageId,
     },
+    /// Cost Inquiry for a batch of PUTs
+    CostInquiry(CostInquiry),
+    /// Response from an elder for CostInquiry which should be aggregated
+    InquiryResponse(GuaranteedQuoteShare),
+    /// Response from an elder for RegisterPayment which should be aggregated
+    PaymentResponse(PaymentReceiptShare),
     /// An error response to a [`Cmd`].
     ///
     /// [`Cmd`]: Self::Cmd

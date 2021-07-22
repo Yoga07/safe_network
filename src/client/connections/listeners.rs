@@ -8,18 +8,22 @@
 
 use super::Session;
 use crate::client::Error;
+use crate::messaging::data::{GuaranteedQuote, GuaranteedQuoteShare};
+use crate::messaging::node::SigShare;
 use crate::messaging::{
     data::{CmdError, DataMsg, PaymentError, ProcessMsg},
     section_info::{GetSectionResponse, SectionInfoMsg},
     MessageId, MessageType, SectionAuthorityProvider, WireMsg,
 };
 use crate::types::PublicKey;
+use bytes::Bytes;
 use qp2p::IncomingMessages;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
 };
 use tracing::{debug, error, info, trace, warn};
+use xor_name::XorName;
 
 impl Session {
     // Listen for incoming messages on a connection
@@ -126,10 +130,11 @@ impl Session {
 
     // Apply updated info to a network session, and trigger connections
     async fn update_session_info(&mut self, sap: &SectionAuthorityProvider) -> Result<(), Error> {
-        let original_known_elders = self.all_known_sections.read().await.clone();
+        let mut original_known_elders = self.all_known_sections.write().await.clone();
 
         // Change this once sn_messaging is updated
         let received_elders = sap.elders.clone();
+        let _ = original_known_elders.insert(sap.prefix, sap.clone());
 
         // Obtain the addresses of the Elders
         trace!(
@@ -137,37 +142,32 @@ impl Session {
             received_elders
         );
 
-        {
+        if sap.prefix.matches(&XorName::from(self.client_pk)) {
             // Update session key set
             let mut keyset = self.section_key_set.write().await;
             if *keyset == Some(sap.public_key_set.clone()) {
                 trace!("We have previously received the key set already.");
                 return Ok(());
             }
+
             *keyset = Some(sap.public_key_set.clone());
-        }
+            {
+                // update section prefix
+                let mut prefix = self.section_prefix.write().await;
+                *prefix = Some(sap.prefix);
+            }
 
-        {
-            // update section prefix
-            let mut prefix = self.section_prefix.write().await;
-            *prefix = Some(sap.prefix);
-        }
-
-        {
-            // Update session elders
-            let mut session_elders = self.all_known_sections.write().await;
-            *session_elders.insert(sap.prefix, sap.elders);
-        }
-
-        if original_known_elders != received_elders {
             debug!("Connecting to new set of Elders: {:?}", received_elders);
             let new_elder_addresses = received_elders.values().cloned().collect::<BTreeSet<_>>();
             let updated_contacts = new_elder_addresses.iter().cloned().collect::<Vec<_>>();
-            let old_elders = original_known_elders
-                .iter()
-                .filter_map(|(_, peer_addr)| {
-                    if !new_elder_addresses.contains(peer_addr) {
-                        Some(*peer_addr)
+            let old_elders = self
+                .our_section
+                .read()
+                .await
+                .values()
+                .filter_map(|addr| {
+                    if !new_elder_addresses.contains(addr) {
+                        Some(*addr)
                     } else {
                         None
                     }
@@ -182,9 +182,10 @@ impl Session {
     }
 
     // Handle messages intended for client consumption (re: queries + commands)
-    async fn handle_client_msg(&self, msg_id: MessageId, msg: ProcessMsg, src: SocketAddr) {
+    async fn handle_client_msg(&mut self, msg_id: MessageId, msg: ProcessMsg, src: SocketAddr) {
         debug!("DataMsg with id {:?} received from {:?}", msg_id, src);
         let queries = self.pending_queries.clone();
+        let inquiry_queries = self.pending_inquiries.clone();
         let error_sender = self.incoming_err_sender.clone();
 
         let _ = tokio::spawn(async move {
@@ -211,6 +212,25 @@ impl Session {
                         let _ = sender.send(response).await;
                     } else {
                         trace!("No channel found for {:?}", correlation_id);
+                    }
+                }
+                ProcessMsg::InquiryResponse(guaranteed_share) => {
+                    let sig_share = SigShare {
+                        public_key_set: guaranteed_share.key_set,
+                        index: guaranteed_share.sig.index,
+                        signature_share: guaranteed_share.sig.share,
+                    };
+                    let serialized = bincode::serialize(&guaranteed_share.quote)?;
+                    match self.aggregate_incoming_message(serialized, sig_share) {
+                        Ok(Some(aggregated)) => {
+                            let guaranteed_quote: GuaranteedQuote =
+                                bincode::deserialize(&aggregated)?;
+                            inquiry_queries.read().await.get()
+                        }
+                        Err(AggregatorError::NotEnoughShares) => {}
+                        Err(e) => {
+                            error!("Error aggregated GuaranteedQuoteShare: {:?}", e)
+                        }
                     }
                 }
                 ProcessMsg::CmdError {

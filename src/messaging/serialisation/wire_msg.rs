@@ -238,6 +238,7 @@ impl WireMsg {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::PublicKey;
     use crate::{
         messaging::{
             data::{ChunkRead, DataMsg, DataQuery, ProcessMsg},
@@ -261,7 +262,7 @@ mod tests {
             section_pk: dst_section_pk,
         };
 
-        let query = SectionInfoMsg::GetSectionQuery(dst_section_pk.into());
+        let query = SectionInfoMsg::GetSectionQuery(XorName::from(PublicKey::from(dst_section_pk)));
 
         let wire_msg = WireMsg::new_section_info_msg(&query, dst_location)?;
         let serialized = wire_msg.serialize()?;
@@ -296,7 +297,7 @@ mod tests {
             section_pk: dst_section_pk,
         };
 
-        let query = SectionInfoMsg::GetSectionQuery(dst_section_pk.into());
+        let query = SectionInfoMsg::GetSectionQuery(XorName::from(PublicKey::from(dst_section_pk)));
 
         let mut wire_msg = WireMsg::new_section_info_msg(&query, dst_location)?;
         let serialized = wire_msg.serialize()?;

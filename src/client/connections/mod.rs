@@ -10,12 +10,12 @@ mod listeners;
 mod messaging;
 
 use crate::client::Error;
-use crate::messaging::data::{CostInquiry, GuaranteedQuote, PaymentReceipt};
+use crate::messaging::data::{CostInquiry, GuaranteedQuote, GuaranteedQuoteShare, PaymentReceipt};
 use crate::messaging::node::{KeyedSig, SigShare};
 use crate::messaging::signature_aggregator::{Error as AggregatorError, SignatureAggregator};
 use crate::messaging::{
     data::{CmdError, QueryResponse},
-    MessageId,
+    MessageId, SectionAuthorityProvider,
 };
 use crate::types::PublicKey;
 use bls::PublicKeySet;
@@ -34,8 +34,10 @@ use tracing::{debug, trace};
 use xor_name::{Prefix, XorName};
 
 type QueryResponseSender = Sender<QueryResponse>;
+type InquiryResponseSender = Sender<GuaranteedQuoteShare>;
 
 type PendingQueryResponses = Arc<RwLock<HashMap<MessageId, QueryResponseSender>>>;
+type PendingInquiryResponses = Arc<RwLock<HashMap<MessageId, InquiryResponseSender>>>;
 
 pub(crate) struct QueryResult {
     pub(super) response: QueryResponse,
@@ -44,15 +46,17 @@ pub(crate) struct QueryResult {
 
 #[derive(Clone, Debug)]
 pub(super) struct Session {
+    client_pk: PublicKey,
     pub(super) section_key_set: Arc<RwLock<Option<PublicKeySet>>>,
     qp2p: QuicP2p,
     pending_queries: PendingQueryResponses,
+    pending_inquiries: PendingInquiryResponses,
     incoming_err_sender: Arc<Sender<CmdError>>,
     endpoint: Option<Endpoint>,
     /// Elders of our section
     our_section: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
     /// all elders we know about from SectionInfo messages
-    all_known_sections: Arc<RwLock<BTreeMap<XorName, SocketAddr>>>,
+    all_known_sections: Arc<RwLock<BTreeMap<Prefix, SectionAuthorityProvider>>>,
     section_prefix: Arc<RwLock<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
     aggregator: SignatureAggregator,
@@ -60,6 +64,7 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn new(
+        client_pk: PublicKey,
         qp2p_config: QuicP2pConfig,
         err_sender: Sender<CmdError>,
     ) -> Result<Self, Error> {
@@ -67,8 +72,10 @@ impl Session {
 
         let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
         Ok(Self {
+            client_pk,
             qp2p,
             pending_queries: Arc::new(RwLock::new(HashMap::default())),
+            pending_inquiries: Arc::new(RwLock::new(HashMap::default())),
             incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
             section_key_set: Arc::new(RwLock::new(None)),
@@ -82,7 +89,7 @@ impl Session {
 
     /// Get the elders count of our section elders as provided by SectionInfo
     pub(super) async fn known_elders_count(&self) -> usize {
-        self.all_known_sections.read().await.len()
+        self.our_section.read().await.len()
     }
 
     pub(super) fn endpoint(&self) -> Result<&Endpoint, Error> {
@@ -107,28 +114,11 @@ impl Session {
         }
     }
 
-    pub(super) async fn fetch_quote(&self, inquiry: CostInquiry) -> Result<GuaranteedQuote, Error> {
-        let payment_xorname = inquiry.payment_xorname()?;
-        let elders = self
-            .all_known_sections
-            .read()
-            .await
-            .clone()
-            .into_iter()
-            .sorted_by(|(lhs_name, _), (rhs_name, _)| {
-                payment_xorname.cmp_distance(lhs_name, rhs_name)
-            })
-            .map(|(_, addrs)| addrs.values())
-            .collect::<Vec<SocketAddr>>();
-
-        self.send_inquiry(inquiry, elders)
-    }
-
     pub fn aggregate_incoming_message(
         &mut self,
-        bytes: Bytes,
+        bytes: Vec<u8>,
         sig_share: SigShare,
-    ) -> Result<Option<Bytes>, Error> {
+    ) -> Result<Option<Vec<u8>>, Error> {
         match self.aggregator.add(&bytes, sig_share) {
             Ok(key_sig) => {
                 if key_sig.public_key.verify(&key_sig.signature, &bytes) {

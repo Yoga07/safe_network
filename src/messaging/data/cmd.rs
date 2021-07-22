@@ -11,9 +11,6 @@ use crate::types::PublicKey;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 
-use crate::messaging::data::ChargedOps;
-use serde::{Deserialize, Serialize};
-
 /// Data commands - creating, updating, or removing data.
 ///
 /// See the [`types`] module documentation for more details of the types supported by the Safe

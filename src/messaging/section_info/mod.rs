@@ -10,13 +10,14 @@ use crate::messaging::{DstLocation, MessageType, SectionAuthorityProvider, WireM
 use crate::types::PublicKey;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use xor_name::XorName;
 
 /// Messages for exchanging network info, specifically on a target section for a msg.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum SectionInfoMsg {
     /// SectionInfoMsg to request information about the section that matches the given name.
-    GetSectionQuery(PublicKey),
+    GetSectionQuery(XorName),
     /// Response to `GetSectionQuery`.
     GetSectionResponse(GetSectionResponse),
 }

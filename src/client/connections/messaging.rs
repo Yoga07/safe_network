@@ -12,17 +12,18 @@ use crate::messaging::data::{CostInquiry, GuaranteedQuote, PaymentReceipt};
 use crate::messaging::{
     data::{ChunkRead, DataCmd, DataQuery, QueryResponse},
     section_info::SectionInfoMsg,
-    DataSigned, MessageId, WireMsg,
+    DataSigned, MessageId, SectionAuthorityProvider, WireMsg,
 };
 use crate::messaging::{DstLocation, MsgKind};
 use crate::types::{Chunk, PrivateChunk, PublicChunk, PublicKey};
+use bls::PublicKeySet;
 use bytes::Bytes;
 use futures::{future::join_all, stream::FuturesUnordered};
 use itertools::Itertools;
 use std::{collections::BTreeSet, net::SocketAddr, time::Duration};
 use tokio::{sync::mpsc::channel, task::JoinHandle, time::timeout};
 use tracing::{debug, error, info, trace, warn};
-use xor_name::XorName;
+use xor_name::{Prefix, XorName};
 
 // Number of attemps when retrying to send a message to a node
 const NUMBER_OF_RETRIES: usize = 3;
@@ -70,7 +71,7 @@ impl Session {
             }
         });
 
-        self.send_get_section_query(client_pk, &bootstrapped_peer)
+        self.send_get_section_query(XorName::from(client_pk), &bootstrapped_peer)
             .await?;
 
         // Bootstrap and send a handshake request to the bootstrapped peer
@@ -194,18 +195,178 @@ impl Session {
 
     pub(crate) async fn send_inquiry(
         &self,
-        inquiry: CostInquiry,
-        elders: Vec<SocketAddr>,
+        serialised_inquiry: Bytes,
+        payment_xorname: XorName,
+        client_signed: ClientSigned,
     ) -> Result<GuaranteedQuote, Error> {
+        let (elders, pk_set, prefix) = self
+            .all_known_sections
+            .read()
+            .await
+            .clone()
+            .into_iter()
+            .sorted_by(|(lhs_name, _), (rhs_name, _)| {
+                payment_xorname.cmp_distance(&lhs_name.name(), &rhs_name.name())
+            })
+            .take(1)
+            .map(|(_, sap)| (sap.elders.values(), sap.public_key_set, sap.prefix))
+            .collect::<(Vec<SocketAddr>, PublicKeySet, Prefix)>();
+
         let endpoint = self.endpoint()?;
 
-        // let wire_msg = WireMsg::new_msg(MessageId::new(), Bytes::new(), MsgKind::DataMsg(ClientSigned{ public_key: (), signature: () }));
+        let wire_msg = WireMsg::new_msg(
+            MessageId::new(),
+            serialised_inquiry,
+            MsgKind::DataMsg(client_signed),
+            DstLocation::Section {
+                name: prefix.name(),
+                section_pk: pk_set.public_key(),
+            },
+        )?;
 
-        for elder in elders {
-            // endpoint.send_message()
+        let serialized_wire_msg = wire_msg.serialize()?;
+
+        for socket in elders {
+            let endpoint = endpoint.clone();
+            let msg_bytes = serialized_wire_msg.clone();
+            let counter_clone = responses_discarded.clone();
+            let task_handle = tokio::spawn(async move {
+                endpoint.connect_to(&socket).await?;
+
+                // Retry queries that failed due to connection issues only
+                let mut result = Err(Error::ElderQuery);
+                for attempt in 0..NUMBER_OF_RETRIES + 1 {
+                    let msg_bytes_clone = msg_bytes.clone();
+
+                    if let Err(err) = endpoint.send_message(msg_bytes_clone, &socket).await {
+                        error!(
+                            "Try #{:?} @ {:?}, failed sending query message: {:?}",
+                            attempt + 1,
+                            socket,
+                            err
+                        );
+                        result = Err(Error::SendingQuery);
+                        if attempt <= NUMBER_OF_RETRIES {
+                            let millis = 2_u64.pow(attempt as u32 - 1) * 100;
+                            tokio::time::sleep(std::time::Duration::from_millis(millis)).await
+                        }
+                    } else {
+                        trace!("DataMsg with id: {:?}, sent to {}", &msg_id, &socket);
+                        result = Ok(());
+                        break;
+                    }
+                }
+
+                match &result {
+                    Err(err) => {
+                        error!("Error sending Query to elder: {:?} ", err);
+                        let mut a = counter_clone.lock().await;
+                        *a += 1;
+                    }
+                    Ok(()) => (),
+                }
+
+                result
+            });
+
+            tasks.push(task_handle);
         }
 
-        unimplemented!()
+        // TODO:
+        // We are now simply accepting the very first valid response we receive,
+        // but we may want to revisit this to compare multiple responses and validate them,
+        // similar to what we used to do up to the following commit:
+        // https://github.com/maidsafe/sn_client/blob/9091a4f1f20565f25d3a8b00571cc80751918928/src/connection_manager.rs#L328
+        //
+        // For Chunk responses we already validate its hash matches the xorname requested from,
+        // so we don't need more than one valid response to prevent from accepting invaid responses
+        // from byzantine nodes, however for mutable data (non-Chunk esponses) we will
+        // have to review the approach.
+        let mut responses_discarded: usize = 0;
+
+        // Send all queries concurrently
+        let results = join_all(tasks).await;
+
+        for result in results {
+            if let Err(err) = result {
+                error!("Error spawning task to send query: {:?} ", err);
+                responses_discarded += 1;
+            }
+        }
+
+        let response = loop {
+            let mut error_response = None;
+            match (receiver.recv().await, chunk_addr) {
+                (Some(QueryResponse::GetChunk(Ok(blob))), Some(chunk_addr)) => {
+                    // We are dealing with Chunk query responses, thus we validate its hash
+                    // matches its xorname, if so, we don't need to await for more responses
+                    debug!("Chunk QueryResponse received is: {:#?}", blob);
+
+                    let xorname = match &blob {
+                        Chunk::Private(priv_chunk) => {
+                            *PrivateChunk::new(priv_chunk.value().clone(), *priv_chunk.owner())
+                                .name()
+                        }
+                        Chunk::Public(pub_chunk) => {
+                            *PublicChunk::new(pub_chunk.value().clone()).name()
+                        }
+                    };
+
+                    if *chunk_addr.name() == xorname {
+                        trace!("Valid Chunk received for {}", msg_id);
+                        break Some(QueryResponse::GetChunk(Ok(blob)));
+                    } else {
+                        // the Chunk content doesn't match its Xorname,
+                        // this is suspicious and it could be a byzantine node
+                        warn!("We received an invalid Chunk response from one of the nodes");
+                        responses_discarded += 1;
+                    }
+                }
+                // Erring on the side of positivity. \
+                // Saving error, but not returning until we have more responses in
+                // (note, this will overwrite prior errors, so we'll just return whicever was last received)
+                (response @ Some(QueryResponse::GetChunk(Err(_))), Some(_))
+                | (response @ Some(QueryResponse::GetRegister(Err(_))), None)
+                | (response @ Some(QueryResponse::GetSequence(Err(_))), None)
+                | (response @ Some(QueryResponse::GetRegisterPolicy(Err(_))), None)
+                | (response @ Some(QueryResponse::GetRegisterOwner(Err(_))), None)
+                | (response @ Some(QueryResponse::GetRegisterUserPermissions(Err(_))), None)
+                | (response @ Some(QueryResponse::GetSequenceLastEntry(Err(_))), None)
+                | (response @ Some(QueryResponse::GetSequencePrivatePolicy(Err(_))), None)
+                | (response @ Some(QueryResponse::GetSequencePublicPolicy(Err(_))), None)
+                | (response @ Some(QueryResponse::GetSequenceRange(Err(_))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", &response);
+                    error_response = response;
+                    responses_discarded += 1;
+                }
+                (Some(response), _) => {
+                    debug!("QueryResponse received is: {:#?}", response);
+                    break Some(response);
+                }
+                (None, _) => {
+                    debug!("QueryResponse channel closed.");
+                    break None;
+                }
+            }
+            if responses_discarded == elders_len {
+                break error_response;
+            }
+        };
+
+        debug!(
+            "Response obtained for query w/id {:?}: {:?}",
+            msg_id, response
+        );
+
+        let _ = tokio::spawn(async move {
+            // Remove the response sender
+            trace!("Removing channel for {:?}", msg_id);
+            let _ = pending_queries.clone().write().await.remove(&msg_id);
+        });
+
+        response
+            .map(|response| QueryResult { response, msg_id })
+            .ok_or(Error::NoResponse)
     }
 
     /// Send a `DataMsg` to the network awaiting for the response.
@@ -443,13 +604,8 @@ impl Session {
             bootstrapped_peer
         );
 
-        let dst_section_name = XorName::from(client_pk);
-
-        // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
-        let random_section_pk = bls::SecretKey::random().public_key();
-
         let msg_id = MessageId::new();
-        let query = SectionInfoMsg::GetSectionQuery(client_pk);
+        let query = SectionInfoMsg::GetSectionQuery(dst_section_name);
         let payload = WireMsg::serialize_msg_payload(&query)?;
         let msg_kind = MsgKind::SectionInfoMsg;
         let dst_location = DstLocation::Section {
@@ -482,8 +638,27 @@ impl Session {
         Ok(())
     }
 
+    pub async fn get_section_for(&self, name: XorName) -> Result<SectionAuthorityProvider, Error> {
+        let query = SectionInfoMsg::GetSectionQuery(name);
+        let payload = WireMsg::serialize_msg_payload(&query)?;
+        let msg_kind = MsgKind::SectionInfoMsg;
+        let dst_location = DstLocation::Section {
+            name: dst_section_name,
+            section_pk: random_section_pk,
+        };
+        let wire_msg = WireMsg::new_msg(msg_id, payload, msg_kind, dst_location)?;
+        let msg_bytes = wire_msg.serialize()?;
+
+        for addr in self.our_section.read().await.values() {
+            let msg_bytes = msg_bytes.clone();
+            self.endpoint?.send_message(msg_bytes, addr).await?;
+        }
+
+        Ok(sap)
+    }
+
     // Connect to a set of Elders nodes which will be
-    // the receipients of our messages on the network.
+    // the recipients of our messages on the network.
     pub(crate) async fn connect_to_elders(&mut self) -> Result<(), Error> {
         // TODO: remove this function completely
 
@@ -500,7 +675,9 @@ impl Session {
         trace!("We now know our {} Elders.", peers_len);
         {
             let mut session_elders = self.our_section.write().await;
-            *session_elders = new_elders;
+            for (_, addr) in session_elders.iter() {
+                self.endpoint?.connect_to(addr)?
+            }
         }
 
         self.is_connecting_to_new_elders = false;

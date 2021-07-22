@@ -12,7 +12,7 @@ use crate::messaging::{
         ProcessingError, QueryResponse,
     },
     node::NodeMsg,
-    DataAuthority, DstLocation, EndUser, MessageId,
+    DataAuthority, DataSigned, DstLocation, EndUser, MessageId, SrcLocation,
 };
 use crate::routing::Prefix;
 use crate::types::{Chunk, PublicKey};
