@@ -17,6 +17,8 @@ use crate::node::{api::cmds::Cmd, core::Core, Result};
 use crate::peer::Peer;
 use crate::types::{log_markers::LogMarker, register::User, PublicKey, ReplicatedData};
 
+use crate::messaging::system::NodeEvent;
+use itertools::Itertools;
 use xor_name::XorName;
 
 impl Core {
@@ -112,6 +114,26 @@ impl Core {
                 name, count
             );
             cmds.push(Cmd::ProposeOffline(name));
+        }
+
+        let deviants = self.liveness.check_for_active_replication().await;
+        warn!("{deviants:?} have crossed active replication threshold. Triggering active data replication");
+
+        let our_adults = self.network_knowledge.adults().await;
+        let valid_adults = our_adults
+            .iter()
+            .filter(|peer| !deviants.contains(&peer.name()))
+            .cloned()
+            .collect::<Vec<Peer>>();
+
+        for adult in valid_adults {
+            commands.push(Command::PrepareNodeMsgToSend {
+                msg: SystemMsg::NodeCmd(NodeEvent::DeviantsDetected(deviants.clone())),
+                dst: DstLocation::Node {
+                    name: adult.name(),
+                    section_pk: *self.section_chain().await.last_key(),
+                },
+            });
         }
 
         if !pending_removed {

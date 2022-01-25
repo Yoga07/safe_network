@@ -728,6 +728,13 @@ impl Core {
                     }
                 };
             }
+            SystemMsg::NodeCmd(NodeEvent::DeviantsDetected(deviants)) => {
+                info!(
+                    "Received probable deviants nodes {deviants:?} Starting active data replication"
+                );
+
+                return self.republish_data_for_deviant_nodes(deviants).await;
+            }
             SystemMsg::NodeCmd(node_cmd) => {
                 self.send_event(Event::MessageReceived {
                     msg_id,
@@ -911,6 +918,29 @@ impl Core {
             cmds.push(Cmd::SignOutgoingSystemMsg { msg, dst });
         }
         cmds
+    }
+
+    async fn republish_data_for_deviant_nodes(
+        &self,
+        deviants: BTreeSet<XorName>,
+    ) -> Result<Vec<Command>> {
+        let our_adults = self
+            .network_knowledge
+            .adults()
+            .await
+            .iter()
+            .map(|peer| peer.name())
+            .collect::<BTreeSet<XorName>>();
+
+        self.reorganize_data(
+            self.node.read().await.name(),
+            BTreeSet::new(),
+            deviants,
+            our_adults,
+            true,
+        )
+        .await
+        .map_err(crate::node::Error::from)
     }
 
     // Convert the provided NodeMsgAuthority to be a `Section` message
