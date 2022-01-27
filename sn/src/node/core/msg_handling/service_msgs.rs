@@ -134,6 +134,7 @@ impl Core {
                     section_pk: *self.section_chain().await.last_key(),
                 },
             });
+            debug!("{:?}", LogMarker::SendDeviantsDetected);
         }
 
         if !pending_removed {
