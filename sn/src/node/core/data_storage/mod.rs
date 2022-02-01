@@ -25,7 +25,6 @@ use crate::{
 pub(crate) use chunk_storage::ChunkStorage;
 pub(crate) use register_storage::RegisterStorage;
 
-use crate::messaging::DstLocation;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
@@ -139,14 +138,21 @@ impl Core {
         new_adults: BTreeSet<XorName>,
         lost_adults: BTreeSet<XorName>,
         remaining: BTreeSet<XorName>,
-        republish: bool,
+        active_replication: bool,
     ) -> Result<Vec<Cmd>, crate::node::Error> {
         let data = self.data_storage.clone();
         let keys = data.keys().await?;
         let mut data_for_replication = BTreeMap::new();
         for addr in keys.iter() {
             if let Some((data, holders)) = self
-                .get_replica_targets(addr, &our_name, &new_adults, &lost_adults, &remaining)
+                .get_replica_targets(
+                    addr,
+                    &our_name,
+                    &new_adults,
+                    &lost_adults,
+                    &remaining,
+                    active_replication,
+                )
                 .await
             {
                 let _prev = data_for_replication.insert(data.name(), (data, holders));
@@ -175,6 +181,7 @@ impl Core {
         new_adults: &BTreeSet<XorName>,
         lost_adults: &BTreeSet<XorName>,
         remaining: &BTreeSet<XorName>,
+        active_replication: bool,
     ) -> Option<(ReplicatedData, BTreeSet<XorName>)> {
         let storage = self.data_storage.clone();
 
@@ -191,7 +198,9 @@ impl Core {
             info!("Republishing data at {:?}", address);
             trace!("We are not a holder anymore? {}, New Adult is Holder? {}, Lost Adult was holder? {}", we_are_not_holder_anymore, new_adult_is_holder, lost_old_holder);
             let data = storage.get_for_replication(address).await.ok()?;
-            if we_are_not_holder_anymore {
+
+            // Do not delete data if this is just for active replication
+            if we_are_not_holder_anymore && !active_replication {
                 if let Err(err) = storage.remove(address).await {
                     warn!("Error deleting data during republish: {:?}", err);
                 }
