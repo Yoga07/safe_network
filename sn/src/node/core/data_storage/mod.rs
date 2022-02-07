@@ -138,7 +138,7 @@ impl Core {
         new_adults: BTreeSet<XorName>,
         lost_adults: BTreeSet<XorName>,
         remaining: BTreeSet<XorName>,
-        active_replication: bool,
+        preemptive_replication: bool,
     ) -> Result<Vec<Cmd>, crate::node::Error> {
         let data = self.data_storage.clone();
         let keys = data.keys().await?;
@@ -151,7 +151,7 @@ impl Core {
                     &new_adults,
                     &lost_adults,
                     &remaining,
-                    active_replication,
+                    preemptive_replication,
                 )
                 .await
             {
@@ -181,7 +181,7 @@ impl Core {
         new_adults: &BTreeSet<XorName>,
         lost_adults: &BTreeSet<XorName>,
         remaining: &BTreeSet<XorName>,
-        active_replication: bool,
+        preemptive_replication: bool,
     ) -> Option<(ReplicatedData, BTreeSet<XorName>)> {
         let storage = self.data_storage.clone();
 
@@ -199,8 +199,8 @@ impl Core {
             trace!("We are not a holder anymore? {}, New Adult is Holder? {}, Lost Adult was holder? {}", we_are_not_holder_anymore, new_adult_is_holder, lost_old_holder);
             let data = storage.get_for_replication(address).await.ok()?;
 
-            // Do not delete data if this is just for active replication
-            if we_are_not_holder_anymore && !active_replication {
+            // Do not delete data if this is just for preemptive replication
+            if we_are_not_holder_anymore && !preemptive_replication {
                 if let Err(err) = storage.remove(address).await {
                     warn!("Error deleting data during republish: {:?}", err);
                 }
