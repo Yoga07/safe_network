@@ -35,6 +35,7 @@ use crate::node::{
 };
 use crate::peer::{Peer, UnnamedPeer};
 use crate::types::{log_markers::LogMarker, PublicKey};
+use std::collections::BTreeSet;
 
 use bls::PublicKey as BlsPublicKey;
 use bytes::Bytes;

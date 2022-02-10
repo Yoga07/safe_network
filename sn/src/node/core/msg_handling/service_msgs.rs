@@ -18,7 +18,6 @@ use crate::peer::Peer;
 use crate::types::{log_markers::LogMarker, register::User, PublicKey, ReplicatedData};
 
 use crate::messaging::system::NodeEvent;
-use itertools::Itertools;
 use xor_name::XorName;
 
 impl Core {
