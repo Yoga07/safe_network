@@ -88,6 +88,13 @@ impl Comm {
         self.peer_links.linked_peers().await
     }
 
+    pub(crate) fn msg_count(&self) -> (usize, usize) {
+        (
+            self.msg_count.incoming().total,
+            self.msg_count.outgoing().total,
+        )
+    }
+
     #[tracing::instrument(skip(local_addr, config, event_tx))]
     pub(crate) async fn bootstrap(
         local_addr: SocketAddr,

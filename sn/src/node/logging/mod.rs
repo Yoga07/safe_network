@@ -10,6 +10,7 @@ pub(super) mod log_ctx;
 mod system;
 
 use self::log_ctx::LogCtx;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use sysinfo::PidExt;
 use sysinfo::{System, SystemExt};
@@ -18,6 +19,22 @@ use tokio::time::MissedTickBehavior;
 use tracing::trace;
 
 const LOG_INTERVAL: Duration = std::time::Duration::from_secs(60);
+
+#[derive(Debug, Serialize, Deserialize)]
+/// Auxiliary struct for logging network and Node Metrics
+pub struct Metrics {
+    /// Node Metrics
+    pub node_metrics: NodeMetrics,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+/// Auxiliary struct for logging Node Metrics
+pub struct NodeMetrics {
+    pub used_space: usize,
+    pub incoming_msg_count: usize,
+    pub outgoing_msg_count: usize,
+    pub linked_peers: usize,
+}
 
 pub(super) async fn run_system_logger(ctx: LogCtx, print_resources_usage: bool) {
     let mut system = System::new_all();

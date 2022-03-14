@@ -17,12 +17,14 @@ use crate::node::{
 };
 use crate::types::{log_markers::LogMarker, Peer};
 
+use std::path::PathBuf;
 use std::{sync::Arc, time::Duration};
 use tokio::time::MissedTickBehavior;
 use tokio::{sync::watch, time};
 use tracing::Instrument;
 
 const PROBE_INTERVAL: Duration = Duration::from_secs(30);
+const METRICS_LOGGING_INTERVAL: Duration = Duration::from_secs(5);
 const LINK_CLEANUP_INTERVAL: Duration = Duration::from_secs(15);
 
 // A command/subcommand id e.g. "963111461", "963111461.0"
@@ -163,6 +165,23 @@ impl Dispatcher {
     pub(super) async fn write_prefixmap_to_disk(self: Arc<Self>) {
         info!("Writing our PrefixMap to disk");
         self.clone().node.write_prefix_map().await
+    }
+
+    pub(super) async fn start_logging_metrics_to_disk(self: Arc<Self>, root_dir: PathBuf) {
+        info!("Starting to log metrics");
+        let _handle = tokio::spawn(async move {
+            let dispatcher = self.clone();
+            let mut interval = tokio::time::interval(METRICS_LOGGING_INTERVAL);
+            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+            loop {
+                let _instant = interval.tick().await;
+
+                // Write metrics to disk
+                let node = &dispatcher.node;
+                node.write_metrics(root_dir.clone()).await
+            }
+        });
     }
 
     /// Handles a single cmd.

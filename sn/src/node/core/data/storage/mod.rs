@@ -120,6 +120,10 @@ impl DataStorage {
         }
     }
 
+    pub(crate) fn used_space(&self) -> usize {
+        self.used_space.used_space()
+    }
+
     async fn keys(&self) -> Result<Vec<DataAddress>> {
         let chunk_keys = self.chunks.keys()?.into_iter().map(DataAddress::Chunk);
         let reg_keys = self

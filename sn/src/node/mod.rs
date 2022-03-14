@@ -39,6 +39,7 @@ pub use self::{
     cfg::config_handler::{add_connection_info, set_connection_info, Config},
     dkg::SectionAuthUtils,
     error::{Error, Result},
+    logging::Metrics,
     network_knowledge::node_state::{FIRST_SECTION_MAX_AGE, FIRST_SECTION_MIN_AGE, MIN_ADULT_AGE},
 };
 pub use qp2p::{Config as NetworkConfig, SendStream};

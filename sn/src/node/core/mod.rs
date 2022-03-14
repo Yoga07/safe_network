@@ -45,6 +45,9 @@ use crate::types::{
 };
 use crate::UsedSpace;
 
+use crate::node::logging::NodeMetrics;
+use crate::node::Metrics;
+use crate::types::utils::write_metrics_to_disk;
 use backoff::ExponentialBackoff;
 use data::{Capacity, Liveness};
 use itertools::Itertools;
@@ -217,6 +220,35 @@ impl Node {
             // Compare and write Prefix to `~/.safe/prefix_maps` dir
             if let Err(e) = compare_and_write_prefix_map_to_disk(&prefix_map).await {
                 error!("Error writing PrefixMap to `~/.safe` dir: {:?}", e);
+            }
+        });
+    }
+
+    pub(crate) async fn write_metrics(&self, root_dir: PathBuf) {
+        info!("Writing our latest metrics to disk");
+
+        // Node metrics
+        let used_space = self.data_storage.used_space();
+
+        // Messaging metrics
+        let (incoming_msg_count, outgoing_msg_count) = self.comm.msg_count();
+        let linked_peers = self.comm.linked_peers().await.len();
+
+        let node_metrics = NodeMetrics {
+            used_space,
+            incoming_msg_count,
+            outgoing_msg_count,
+            linked_peers,
+        };
+
+        let metrics = Metrics { node_metrics };
+
+        let _ = tokio::spawn(async move {
+            if let Err(e) = write_metrics_to_disk(&root_dir, metrics).await {
+                error!(
+                    "Error writing metrics to `<node_root>/metrics.log` dir: {:?}",
+                    e
+                );
             }
         });
     }

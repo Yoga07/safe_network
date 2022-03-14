@@ -29,6 +29,11 @@ impl UsedSpace {
         }
     }
 
+    /// Returns the amount of consumed storage in bytes
+    pub fn used_space(&self) -> usize {
+        self.used_space.clone().load(Ordering::Relaxed)
+    }
+
     pub(crate) fn increase(&self, size: usize) {
         let _ = self.used_space.fetch_add(size, Ordering::Relaxed);
     }

@@ -9,6 +9,7 @@
 use super::errors::convert_bincode_error;
 use super::prefix_map::NetworkPrefixMap;
 use super::{Error, Result};
+use crate::node::Metrics;
 use bytes::Bytes;
 use multibase::{self, Base};
 use rand::rngs::OsRng;
@@ -49,6 +50,25 @@ pub(crate) fn decode<I: AsRef<str>, O: DeserializeOwned>(encoded: I) -> Result<O
         )));
     }
     deserialise(&decoded).map_err(|e| Error::FailedToParse(e.to_string()))
+}
+
+pub(crate) async fn write_metrics_to_disk(root_dir: &Path, metrics: Metrics) -> Result<()> {
+    let metrics_dir = root_dir.join("metrics.log");
+
+    tokio::fs::create_dir_all(root_dir)
+        .await
+        .map_err(|e| Error::DirectoryHandling(format!("Could not create root dir {:?}", e)))?;
+
+    let mut file = std::fs::File::create(&metrics_dir)
+        .map_err(|e| Error::FileHandling(format!("Could not create metrics.log {:?}", e)))?;
+
+    serde_json::to_writer_pretty(&mut file, &metrics)
+        .map_err(|e| Error::FileHandling(format!("Could not write to metrics.log {:?}", e)))?;
+
+    file.sync_all()
+        .map_err(|e| Error::FileHandling(format!("Could not sync metrics.log {:?}", e)))?;
+
+    Ok(())
 }
 
 pub(crate) async fn compare_and_write_prefix_map_to_disk(
