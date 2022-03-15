@@ -10,6 +10,8 @@ pub(super) mod log_ctx;
 mod system;
 
 use self::log_ctx::LogCtx;
+use crate::messaging::system::LoadReport;
+use crate::types::prefix_map::ElderStats;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use sysinfo::PidExt;
@@ -21,19 +23,38 @@ use tracing::trace;
 const LOG_INTERVAL: Duration = std::time::Duration::from_secs(60);
 
 #[derive(Debug, Serialize, Deserialize)]
-/// Auxiliary struct for logging network and Node Metrics
+/// Auxiliary struct for logging Node and Network Metrics
 pub struct Metrics {
     /// Node Metrics
     pub node_metrics: NodeMetrics,
+    /// Network Metrics
+    pub network_metrics: NetworkMetrics,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-/// Auxiliary struct for logging Node Metrics
+/// Type for tracking Node Metrics
 pub struct NodeMetrics {
+    pub age: usize,
+    pub is_elder: bool,
     pub used_space: usize,
     pub incoming_msg_count: usize,
     pub outgoing_msg_count: usize,
     pub linked_peers: usize,
+    pub strain_report: Option<LoadReport>,
+    pub no_of_aggregation_messages_in_queue: usize,
+    pub no_of_proposal_messages_in_queue: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+/// Type for tracking Network Metrics
+pub struct NetworkMetrics {
+    pub our_prefix: String,
+    pub section_size: usize,
+    pub elder_stats: ElderStats,
+    pub no_of_sections_known: usize,
+    // Detail only at Elders
+    pub full_adults: Option<usize>,
+    pub ongoing_dkg_rounds: usize,
 }
 
 pub(super) async fn run_system_logger(ctx: LogCtx, print_resources_usage: bool) {

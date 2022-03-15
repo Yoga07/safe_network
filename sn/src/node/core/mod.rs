@@ -45,7 +45,7 @@ use crate::types::{
 };
 use crate::UsedSpace;
 
-use crate::node::logging::NodeMetrics;
+use crate::node::logging::{NetworkMetrics, NodeMetrics};
 use crate::node::Metrics;
 use crate::types::utils::write_metrics_to_disk;
 use backoff::ExponentialBackoff;
@@ -228,20 +228,71 @@ impl Node {
         info!("Writing our latest metrics to disk");
 
         // Node metrics
+        let age = self.info.read().await.age() as usize;
         let used_space = self.data_storage.used_space();
-
-        // Messaging metrics
         let (incoming_msg_count, outgoing_msg_count) = self.comm.msg_count();
         let linked_peers = self.comm.linked_peers().await.len();
+        let is_elder = self.is_elder().await;
+
+        let no_of_aggregation_messages_in_queue = self
+            .message_aggregator
+            .clone()
+            .number_of_aggregations_in_queue()
+            .await;
+        let no_of_proposal_messages_in_queue = self
+            .proposal_aggregator
+            .clone()
+            .number_of_aggregations_in_queue()
+            .await;
+
+        // Check strain on a random Elder
+        let strain_report = if let Some(elder) = self.network_knowledge.elders().await.first() {
+            self.comm.check_strain(&elder.addr()).await
+        } else {
+            None
+        };
 
         let node_metrics = NodeMetrics {
+            age,
+            is_elder,
             used_space,
             incoming_msg_count,
             outgoing_msg_count,
             linked_peers,
+            strain_report,
+            no_of_aggregation_messages_in_queue,
+            no_of_proposal_messages_in_queue,
         };
 
-        let metrics = Metrics { node_metrics };
+        // Network Metrics
+        let our_prefix = format!("{:?}", self.network_knowledge.prefix().await);
+        let no_of_sections_known = self.network_knowledge.prefix_map().len();
+        let section_size = self.list_section_members().await.len();
+        let elder_stats = self
+            .network_knowledge
+            .prefix_map()
+            .network_stats(&self.network_knowledge.authority_provider().await);
+        let full_adults = if is_elder {
+            Some(self.full_adults().await.len())
+        } else {
+            None
+        };
+
+        let ongoing_dkg_rounds = self.dkg_sessions.read().await.len();
+
+        let network_metrics = NetworkMetrics {
+            our_prefix,
+            section_size,
+            elder_stats,
+            no_of_sections_known,
+            full_adults,
+            ongoing_dkg_rounds,
+        };
+
+        let metrics = Metrics {
+            node_metrics,
+            network_metrics,
+        };
 
         let _ = tokio::spawn(async move {
             if let Err(e) = write_metrics_to_disk(&root_dir, metrics).await {

@@ -121,7 +121,7 @@ impl BackPressure {
         }
     }
 
-    async fn get_load(&self, caller: &SocketAddr, now: Instant) -> LoadReport {
+    pub(crate) async fn get_load(&self, caller: &SocketAddr, now: Instant) -> LoadReport {
         {
             self.system.write().await.refresh_cpu();
         }

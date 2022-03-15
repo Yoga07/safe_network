@@ -17,7 +17,7 @@
 
 mod stats;
 
-use self::stats::NetworkStats;
+pub use self::stats::ElderStats;
 
 use crate::messaging::system::SectionAuth;
 use crate::node::{Error, Result, SectionAuthUtils, SectionAuthorityProvider};
@@ -309,7 +309,7 @@ impl NetworkPrefixMap {
     }
 
     /// Returns network statistics.
-    pub(crate) fn network_stats(&self, our: &SectionAuthorityProvider) -> NetworkStats {
+    pub(crate) fn network_stats(&self, our: &SectionAuthorityProvider) -> ElderStats {
         // Let's compute an estimate of the total number of elders in the network
         // from the size of our routing table.
         let section_prefixes = self.sections.iter().map(|e| *e.key());
@@ -330,7 +330,7 @@ impl NetworkPrefixMap {
 
         // `total_elders_exact` indicates whether `total_elders` is
         // an exact number or an estimate.
-        NetworkStats {
+        ElderStats {
             known_elders: network_elders_count as u64,
             total_elders: total.ceil() as u64,
             total_elders_exact,

@@ -95,6 +95,12 @@ impl SignatureAggregator {
 
         self.map.retain(|digest, _| !to_remove.contains(digest))
     }
+
+    /// Number of unique messages in queue to be aggregated
+    pub async fn number_of_aggregations_in_queue(&self) -> usize {
+        self.remove_expired().await;
+        self.map.clone().len()
+    }
 }
 
 impl Default for SignatureAggregator {

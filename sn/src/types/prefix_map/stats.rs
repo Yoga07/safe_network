@@ -7,14 +7,17 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::types::log_markers::LogMarker;
+use serde::{Deserialize, Serialize};
 
-pub(crate) struct NetworkStats {
+#[derive(Debug, Serialize, Deserialize)]
+/// Information about the no. of Elders have knowledge of.
+pub struct ElderStats {
     pub(super) known_elders: u64,
     pub(super) total_elders: u64,
     pub(super) total_elders_exact: bool,
 }
 
-impl NetworkStats {
+impl ElderStats {
     pub(crate) fn print(&self) {
         if self.total_elders_exact {
             info!(
