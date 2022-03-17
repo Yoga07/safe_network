@@ -297,7 +297,7 @@ impl Node {
         let _ = tokio::spawn(async move {
             if let Err(e) = write_metrics_to_disk(&root_dir, metrics).await {
                 error!(
-                    "Error writing metrics to `<node_root>/metrics.log` dir: {:?}",
+                    "Error writing metrics to `<node_root>/metrics.ndjson` dir: {:?}",
                     e
                 );
             }

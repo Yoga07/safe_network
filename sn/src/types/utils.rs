@@ -16,6 +16,8 @@ use rand::rngs::OsRng;
 use rand::Rng;
 use rayon::current_num_threads;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -53,20 +55,34 @@ pub(crate) fn decode<I: AsRef<str>, O: DeserializeOwned>(encoded: I) -> Result<O
 }
 
 pub(crate) async fn write_metrics_to_disk(root_dir: &Path, metrics: Metrics) -> Result<()> {
-    let metrics_dir = root_dir.join("metrics.log");
+    let metrics_dir = root_dir.join("metrics.ndjson");
 
-    tokio::fs::create_dir_all(root_dir)
-        .await
-        .map_err(|e| Error::DirectoryHandling(format!("Could not create root dir {:?}", e)))?;
+    // std::fs::OpenOptions since serde_json doesn't support tokio::fs::File
+    match OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(metrics_dir)
+    {
+        Ok(mut metrics_json) => {
+            serde_json::to_writer(&mut metrics_json, &metrics).map_err(|e| {
+                Error::FileHandling(format!("Could not write to metrics.ndjson {:?}", e))
+            })?;
 
-    let mut file = std::fs::File::create(&metrics_dir)
-        .map_err(|e| Error::FileHandling(format!("Could not create metrics.log {:?}", e)))?;
+            // For NDJSON format
+            metrics_json.write_all(b"\n").map_err(|e| {
+                Error::FileHandling(format!(
+                    "Could not append newline to metrics.ndjson {:?}",
+                    e
+                ))
+            })?;
 
-    serde_json::to_writer_pretty(&mut file, &metrics)
-        .map_err(|e| Error::FileHandling(format!("Could not write to metrics.log {:?}", e)))?;
-
-    file.sync_all()
-        .map_err(|e| Error::FileHandling(format!("Could not sync metrics.log {:?}", e)))?;
+            metrics_json.sync_all().map_err(|e| {
+                Error::FileHandling(format!("Could not sync metrics.ndjson {:?}", e))
+            })?;
+        }
+        Err(e) => return Err(Error::FailedToParse(e.to_string())),
+    }
 
     Ok(())
 }
