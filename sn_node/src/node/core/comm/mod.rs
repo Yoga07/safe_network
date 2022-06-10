@@ -116,6 +116,7 @@ impl Comm {
         // Perhaps above a threshold we cleanup non-section conns?
         if !peers_to_cleanup.is_empty() {
             for peer in peers_to_cleanup {
+                debug!("==================> Removing peer: {peer}");
                 let mut sessions_write_guard = self.sessions.write().await;
                 let perhaps_peer = sessions_write_guard.remove(&peer);
                 drop(sessions_write_guard);
