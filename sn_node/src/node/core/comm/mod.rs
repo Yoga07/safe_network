@@ -24,6 +24,7 @@ use crate::node::core::comm::peer_session::SendStatus;
 use crate::node::error::{Error, Result};
 use sn_interface::messaging::WireMsg;
 use sn_interface::types::Peer;
+use sn_dysfunction::DysfunctionDetection;
 
 use bytes::Bytes;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -88,21 +89,22 @@ impl Comm {
         self.our_endpoint.public_addr()
     }
 
-    pub(crate) async fn cleanup_peers(&self, retain_peers: Vec<Peer>) {
+    pub(crate) async fn cleanup_peers(&self, retain_peers: Vec<Peer>, dysfunction: DysfunctionDetection ) -> Result<()> {
         let sessions = self.sessions.read().await;
 
         let mut peers_to_cleanup = vec![];
         for (peer, session) in sessions.iter() {
             session.remove_expired().await;
 
-            if retain_peers.contains(peer) {
-                continue;
-            }
-
             let is_connected = session.is_connected().await;
 
             if !is_connected {
-                peers_to_cleanup.push(*peer);
+
+                if !retain_peers.contains(peer) {
+                    peers_to_cleanup.push(*peer);
+                }
+
+                dysfunction.track_issue(peer.name(), sn_dysfunction::IssueType::Communication ).await?;
             }
         }
 
@@ -128,6 +130,8 @@ impl Comm {
             "PeerLink count post-cleanup: ${:?}",
             self.sessions.read().await.len()
         );
+
+        Ok(())
     }
 
     /// Fake function used as replacement for testing only.

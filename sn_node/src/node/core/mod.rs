@@ -277,9 +277,9 @@ impl Node {
     }
 
     /// Removes any PeerLinks not from our section elders
-    pub(crate) async fn cleanup_non_elder_peers(&self) {
+    pub(crate) async fn cleanup_non_elder_peers(&self) -> Result<()> {
         let elders = self.network_knowledge.elders().await;
-        self.comm.cleanup_peers(elders).await
+        self.comm.cleanup_peers(elders, self.dysfunction_tracking.clone() ).await
     }
 
     /// returns names that are relatively dysfunctional
