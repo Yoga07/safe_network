@@ -38,27 +38,50 @@ fn main() -> Result<()> {
 }
 
 fn bench_data_storage_writes(c: &mut Criterion) -> Result<()> {
-    let mut group = c.benchmark_group("read-sampling");
+    let mut group = c.benchmark_group("write-sampling");
 
     let runtime = Runtime::new().unwrap();
     pub const NONSENSE_CHUNK_SIZE: usize = 1024; // data size should not be important for keys() tests
 
     let size_ranges = [100, 500, 1_000];
+    // for size in size_ranges.iter() {
+    //     group.bench_with_input(
+    //         BenchmarkId::new("register_writes", size),
+    //         size,
+    //         |b, &size| {
+    //             let storage = get_new_data_store()
+    //                 .context("Could not create a temp data store")
+    //                 .unwrap();
+    //
+    //             println!("finished {size} writes");
+    //
+    //             b.to_async(&runtime).iter(|| async {
+    //                 for _ in 0..size {
+    //                     let random_data = create_random_register_replicated_data();
+    //                     let _ = storage.store(&random_data).await;
+    //                 }
+    //             })
+    //         },
+    //     );
+    // }
+
     for size in size_ranges.iter() {
         group.bench_with_input(
-            BenchmarkId::new("register_writes", size),
+            BenchmarkId::new("chunk_writes_sled", size),
             size,
             |b, &size| {
                 let storage = get_new_data_store()
                     .context("Could not create a temp data store")
                     .unwrap();
 
-                println!("finished {size} writes");
-
                 b.to_async(&runtime).iter(|| async {
                     for _ in 0..size {
-                        let random_data = create_random_register_replicated_data();
-                        let _ = storage.store(&random_data).await;
+                        let file = sn_interface::types::utils::random_bytes(NONSENSE_CHUNK_SIZE);
+                        let random_data = ReplicatedData::Chunk(Chunk::new(file));
+                        storage
+                            .store(&random_data)
+                            .await
+                            .expect("failed to write chunk {i}");
                     }
                 })
             },
@@ -66,24 +89,22 @@ fn bench_data_storage_writes(c: &mut Criterion) -> Result<()> {
     }
 
     for size in size_ranges.iter() {
-        group.bench_with_input(BenchmarkId::new("chunk writes", size), size, |b, &size| {
-            let storage = get_new_data_store()
-                .context("Could not create a temp data store")
-                .unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("chunk_writes_cacache", size),
+            size,
+            |b, &size| {
+                b.to_async(&runtime).iter(|| async {
+                    for _ in 0..size {
+                        let file = sn_interface::types::utils::random_bytes(NONSENSE_CHUNK_SIZE);
+                        let key = &file[0..32];
 
-            b.to_async(&runtime).iter(|| async {
-                for _ in 0..size {
-                    // println!("writing d:{i}");
-                    let file = sn_interface::types::utils::random_bytes(NONSENSE_CHUNK_SIZE);
-                    let random_data = ReplicatedData::Chunk(Chunk::new(file));
-                    storage
-                        .store(&random_data)
-                        .await
-                        .expect("failed to write chunk {i}");
-                }
-                println!("finished {size} writes");
-            })
-        });
+                        cacache::write("./db", &format!("{key:?}"), &file)
+                            .await
+                            .expect("failed to write chunk {i}");
+                    }
+                })
+            },
+        );
     }
 
     Ok(())
@@ -96,51 +117,50 @@ fn bench_data_storage_reads(c: &mut Criterion) -> Result<()> {
     pub const NONSENSE_CHUNK_SIZE: usize = 1024; // data size should not be important for keys() tests
 
     let size_ranges = [100, 500, 1_000];
+    // for size in size_ranges.iter() {
+    //     group.bench_with_input(BenchmarkId::new("register_keys", size), size, |b, &size| {
+    //         let storage = get_new_data_store()
+    //             .context("Could not create a temp data store")
+    //             .unwrap();
+    //
+    //         println!("starting writes");
+    //         for _ in 0..size {
+    //             let random_data = create_random_register_replicated_data();
+    //
+    //             if runtime
+    //                 .block_on(storage.store(&random_data))
+    //                 .context("could not store register")
+    //                 .is_err()
+    //             {
+    //                 panic!("Error storing register");
+    //             }
+    //         }
+    //
+    //         println!("finished {size} writes");
+    //
+    //         b.to_async(&runtime).iter(|| async {
+    //             match storage.keys().await {
+    //                 Ok(_) => {
+    //                     let random_filename: String = thread_rng()
+    //                         .sample_iter(&Alphanumeric)
+    //                         .take(7)
+    //                         .map(char::from)
+    //                         .collect();
+    //
+    //                     println!("progress? {:?}", random_filename)
+    //                 }
+    //                 Err(error) => println!("Reading store register keys failed with {:?}", error),
+    //             }
+    //         })
+    //     });
+    // }
+
     for size in size_ranges.iter() {
-        group.bench_with_input(BenchmarkId::new("register_keys", size), size, |b, &size| {
+        group.bench_with_input(BenchmarkId::new("chunk_keys_sled", size), size, |b, &size| {
             let storage = get_new_data_store()
                 .context("Could not create a temp data store")
                 .unwrap();
 
-            println!("starting writes");
-            for _ in 0..size {
-                let random_data = create_random_register_replicated_data();
-
-                if runtime
-                    .block_on(storage.store(&random_data))
-                    .context("could not store register")
-                    .is_err()
-                {
-                    panic!("Error storing register");
-                }
-            }
-
-            println!("finished {size} writes");
-
-            b.to_async(&runtime).iter(|| async {
-                match storage.keys().await {
-                    Ok(_) => {
-                        let random_filename: String = thread_rng()
-                            .sample_iter(&Alphanumeric)
-                            .take(7)
-                            .map(char::from)
-                            .collect();
-
-                        println!("progress? {:?}", random_filename)
-                    }
-                    Err(error) => println!("Reading store register keys failed with {:?}", error),
-                }
-            })
-        });
-    }
-
-    for size in size_ranges.iter() {
-        group.bench_with_input(BenchmarkId::new("chunk keys", size), size, |b, &size| {
-            let storage = get_new_data_store()
-                .context("Could not create a temp data store")
-                .unwrap();
-
-            println!("starting writes");
             for _ in 0..size {
                 let file = sn_interface::types::utils::random_bytes(NONSENSE_CHUNK_SIZE);
                 let random_data = ReplicatedData::Chunk(Chunk::new(file));
@@ -152,20 +172,38 @@ fn bench_data_storage_reads(c: &mut Criterion) -> Result<()> {
                     panic!("Error storing chunk");
                 };
             }
-            println!("finished {size} writes");
 
             b.to_async(&runtime).iter(|| async {
                 match storage.keys().await {
-                    Ok(_keys) => {
-                        let random_filename: String = thread_rng()
-                            .sample_iter(&Alphanumeric)
-                            .take(7)
-                            .map(char::from)
-                            .collect();
-
-                        println!("progress? {:?}", random_filename)
-                    }
+                    Ok(_keys) => {}
                     Err(error) => println!("Reading store register keys failed with {:?}", error),
+                }
+            })
+        });
+    }
+
+    for size in size_ranges.iter() {
+        group.bench_with_input(BenchmarkId::new("chunk_keys_cacache", size), size, |b, &size| {
+
+            for _ in 0..size {
+                let file = sn_interface::types::utils::random_bytes(NONSENSE_CHUNK_SIZE);
+                let key = &file[0..32];
+
+                if runtime
+                    .block_on(cacache::write("./db", &format!("{key:?}"), &file))
+                    .context("could not store chunk")
+                    .is_err()
+                {
+                    panic!("Error storing chunk");
+                };
+            }
+
+            b.to_async(&runtime).iter(|| async {
+                for metadata in cacache::list_sync("./db") {
+                    match metadata {
+                        Ok(_value) => {}
+                        Err(error) => println!("Reading stored chunk failed with {:?}", error),
+                    }
                 }
             })
         });
