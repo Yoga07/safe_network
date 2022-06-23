@@ -14,7 +14,7 @@ NODE_COUNT="${NODE_COUNT:-$DEFAULT_NODE_COUNT}"
 # It's better to use the network health test in rust as it's type safe.
 # This is needed for windows though at the moment due to the logfile locking...
 echo "Checking logfiles to check for split"
-log_dir="$HOME/.safe/node/local-test-network"
+log_dir="/mnt/c/users/yoges/.safe/node/local-test-network"
 
 # -u needed here to search log dirs
 prefix1_prior_elder_nodes=$(rg "StillElderAfterSplit: Prefix\(1\)" "$log_dir" -g "*.log*"  -u -c | wc -l)
